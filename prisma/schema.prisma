@@ -1,0 +1,75 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String   @unique
+  role       String?  @default("admin")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("users")
+}
+
+model Karyawan {
+  id         BigInt      @id @default(autoincrement())
+  nama       String
+  posisi     String?
+  noTelp     String?     @map("no_telp")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  transaksis Transaksi[]
+
+  @@map("karyawans")
+}
+
+model Motor {
+  id         BigInt      @id @default(autoincrement())
+  kategori   String
+  tarif      Decimal
+  transaksis Transaksi[]
+
+  @@map("motors")
+}
+
+model Barang {
+  id          BigInt   @id @default(autoincrement())
+  namaBarang  String   @map("nama_barang")
+  jumlahStock Int      @default(0) @map("jumlah_stock")
+  kategori    String?
+  harga       Decimal
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("barangs")
+}
+
+model Transaksi {
+  id          BigInt   @id @default(autoincrement())
+  tanggal     DateTime @default(now()) @db.Date
+  layanan     String?
+  total       Decimal?
+  motorId     BigInt?  @map("motor_id")
+  karyawanId  BigInt?  @map("karyawan_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  motor       Motor?    @relation(fields: [motorId], references: [id])
+  karyawan    Karyawan? @relation(fields: [karyawanId], references: [id])
+
+  @@map("transaksis")
+}
+
+model PengeluaranHarian {
+  id         BigInt   @id @default(autoincrement())
+  tanggal    DateTime @default(now()) @db.Date
+  keterangan String?
+  jumlah     Decimal
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("pengeluaran_harians")
+}

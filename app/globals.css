@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/* Pake CSS murni aja buat body biar pasti jalan */
+body {
+  background-color: #f8fafc;
+  color: #1e293b;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+}

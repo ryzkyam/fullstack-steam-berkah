@@ -1,0 +1,51 @@
+create table users (
+  id uuid primary key default gen_random_uuid(),
+  email text unique not null,
+  role text default 'admin',
+  created_at timestamp default now()
+);
+
+create table karyawans (
+  id bigint generated always as identity primary key,
+  nama text not null,
+  posisi text,
+  no_telp text,
+  created_at timestamp default now()
+);
+
+create table motors (
+  id bigint generated always as identity primary key,
+  kategori text not null,
+  tarif numeric not null
+);
+
+create table barangs (
+  id bigint generated always as identity primary key,
+  nama_barang text not null,
+  jumlah_stock int default 0,
+  kategori text,
+  harga numeric not null,
+  created_at timestamp default now()
+);
+
+create table transaksis (
+  id bigint generated always as identity primary key,
+  tanggal date default current_date,
+  layanan text,
+  total numeric,
+  motor_id bigint references motors(id),
+  karyawan_id bigint references karyawans(id),
+  created_at timestamp default now()
+);
+
+create table pengeluaran_harians (
+  id bigint generated always as identity primary key,
+  tanggal date default current_date,
+  keterangan text,
+  jumlah numeric not null,
+  created_at timestamp default now()
+);
+
+
+
+
