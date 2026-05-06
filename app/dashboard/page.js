@@ -27,11 +27,9 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      // 1. Ambil List Cabang (Pastikan Nama Cabang Muncul Benar)
       const { data: resB } = await supabase.from("branches").select("id, nama_cabang").order("id", { ascending: true });
       if (resB) setBranches(resB);
 
-      // 2. Ambil Karyawan dengan Filter Cabang Aktif
       let queryKaryawan = supabase.from("Karyawans").select("Id, Nama, branch_id");
       if (selectedBranch !== "all") {
         queryKaryawan = queryKaryawan.eq("branch_id", selectedBranch);
@@ -44,11 +42,9 @@ export default function Dashboard() {
         setMapKaryawan(mapping);
       }
 
-      // 3. Setup Filter Waktu
       const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01T00:00:00`;
       const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-31T23:59:59`;
 
-      // 4. Query Transaksi & Pengeluaran
       let queryTrans = supabase.from("Transaksis").select("*")
         .gte("Tanggal", firstDay)
         .lte("Tanggal", lastDay);
@@ -76,7 +72,7 @@ export default function Dashboard() {
         setStats({
           motor: transData.length,
           bruto: totalBruto,
-          jatahKaryawan: totalBruto * 0.4, // Sesuai Payroll Steam Motor Berkah
+          jatahKaryawan: totalBruto * 0.4,
           jatahOwner: totalBruto * 0.6,
           biaya: totalBiaya,
           netto: (totalBruto * 0.6) - totalBiaya,
@@ -88,7 +84,6 @@ export default function Dashboard() {
     }
   };
 
-  // --- FITUR EXPORT (FIXED FORMAT EXCEL) ---
   const handleExport = () => {
     if (transaksi.length === 0) return alert("Data periode ini kosong, bro!");
     try {
@@ -112,7 +107,7 @@ export default function Dashboard() {
       }));
       const parser = new Parser({ delimiter: ';' }); 
       const csv = parser.parse(finalData);
-      const csvWithSeparator = "sep=;\n" + csv; // Agar Excel langsung membagi kolom
+      const csvWithSeparator = "sep=;\n" + csv;
       const blob = new Blob([csvWithSeparator], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -134,12 +129,23 @@ export default function Dashboard() {
     <div className="flex min-h-screen bg-slate-100 relative overflow-x-hidden text-slate-900 font-sans">
       
       {/* MOBILE TRIGGER */}
-      <button onClick={() => setIsSidebarOpen(true)} className="md:hidden fixed top-4 left-4 z-[60] bg-[#2b459a] text-white p-3 rounded-2xl shadow-lg">
+      <button 
+        onClick={() => setIsSidebarOpen(true)} 
+        className="md:hidden fixed top-4 left-4 z-[60] bg-[#2b459a] text-white p-3 rounded-2xl shadow-xl active:scale-95 transition-transform"
+      >
         <Menu size={24} strokeWidth={3} />
       </button>
 
-      {/* SIDEBAR FULL (FIXED MAPPING & LINKS) */}
-      <aside className={` md:sticky top-0 left-0 z-[60] w-72 h-screen bg-[#2b459a] text-white p-4 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} shadow-2xl border-r border-blue-800 flex flex-col`}>
+      {/* BACKDROP OVERLAY FOR MOBILE */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[55] md:hidden transition-opacity"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* SIDEBAR */}
+      <aside className={`fixed md:sticky top-0 left-0 z-[60] w-72 h-screen bg-[#2b459a] text-white p-4 transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} shadow-2xl border-r border-blue-800 flex flex-col`}>
         <div className="flex justify-between items-center mb-6 mt-2 px-2">
           <h2 className="text-xl font-bold italic uppercase tracking-tighter flex items-center gap-2">
             <LayoutDashboard size={20} /> STEAM BERKAH 🚀
@@ -149,7 +155,7 @@ export default function Dashboard() {
           </button>
         </div>
         
-        <nav className="space-y-1 text-[11px] font-bold uppercase tracking-wider opacity-90 overflow-y-auto flex-1 pr-2 custom-sidebar-scroll">
+        <nav className="space-y-1 text-[11px] font-bold uppercase tracking-wider opacity-90 overflow-y-auto flex-1 pr-2 scrollbar-hide">
           <p className="px-4 py-2 text-[8px] opacity-50 tracking-[0.2em]">Pusat Kendali</p>
           <Link href="/dashboard" onClick={() => setIsSidebarOpen(false)}>
             <div className={`p-4 rounded-xl cursor-pointer ${pathname === "/dashboard" ? "bg-blue-600 shadow-lg italic" : "hover:bg-blue-800"}`}>📊 Monitoring Utama</div>
@@ -184,11 +190,11 @@ export default function Dashboard() {
         </nav>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-4 md:p-8 w-full transition-all">
-        {/* HEADER DENGAN FIX NAMA CABANG DINAMIS */}
-        <div className="flex flex-col lg:flex-row justify-between items-center mb-8 gap-4 mt-16 md:mt-0">
-          <h1 className="text-xl md:text-3xl font-black text-slate-800 italic uppercase tracking-tighter leading-none">
+      {/* MAIN CONTENT */}
+      <main className="flex-1 p-4 md:p-8 w-full min-w-0">
+        {/* HEADER */}
+        <div className="flex flex-col lg:flex-row justify-between items-center mb-8 gap-6 mt-16 md:mt-0">
+          <h1 className="text-xl md:text-3xl font-black text-slate-800 italic uppercase tracking-tighter leading-tight text-center md:text-left">
             {selectedBranch === 'all' 
               ? 'CENTRAL DASHBOARD 🌍' 
               : ` - ${branches.find(b => b.id.toString() === selectedBranch)?.nama_cabang || ''} 📍`
@@ -196,26 +202,28 @@ export default function Dashboard() {
           </h1>
           
           <div className="flex flex-wrap justify-center gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-200 w-full md:w-auto">
-            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-transparent text-[10px] font-black uppercase px-2 outline-none cursor-pointer">
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-transparent text-[10px] font-black uppercase px-2 outline-none cursor-pointer h-10">
               {[...Array(12)].map((_, i) => (
                 <option key={i+1} value={i+1}>{new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(new Date(0, i))}</option>
               ))}
             </select>
-            <button onClick={handleExport} className="bg-emerald-600 text-white px-3 py-2 rounded-xl text-[9px] font-black shadow-lg uppercase flex items-center gap-1 hover:bg-emerald-700">
-              <Download size={12} /> Export CSV
-            </button>
-            <button onClick={fetchData} className="bg-blue-600 text-white px-3 py-2 rounded-xl text-[9px] font-black shadow-lg uppercase hover:bg-blue-700">🔄 Sync Data</button>
+            <div className="flex gap-2">
+              <button onClick={handleExport} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black shadow-lg uppercase flex items-center gap-1 hover:bg-emerald-700 active:scale-95 transition-all">
+                <Download size={12} /> Export
+              </button>
+              <button onClick={fetchData} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black shadow-lg uppercase hover:bg-blue-700 active:scale-95 transition-all">🔄 Sync</button>
+            </div>
           </div>
         </div>
 
-        {/* BAR ANALISTIK AI PROPHET (KEMBALI MEJENG) */}
-        <div className="bg-slate-900 p-6 rounded-3xl shadow-2xl mb-8 border-l-8 border-yellow-400 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform">
+        {/* AI BANNER */}
+        <div className="bg-slate-900 p-6 rounded-[2rem] shadow-2xl mb-8 border-l-8 border-yellow-400 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform hidden sm:block">
                 <BrainCircuit size={80} className="text-yellow-400" />
             </div>
             <div className="relative z-10 flex flex-col sm:flex-row justify-between items-center gap-4 text-white">
-                <div>
-                    <div className="flex items-center gap-2">
+                <div className="text-center sm:text-left">
+                    <div className="flex items-center justify-center sm:justify-start gap-2">
                         <span className="text-yellow-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                           <Sparkles size={10} /> Data Mining: Prophet Mode
                         </span>
@@ -223,8 +231,8 @@ export default function Dashboard() {
                     </div>
                     <h2 className="text-xl md:text-2xl font-black italic tracking-tighter uppercase mt-1">Estimasi Revenue</h2>
                 </div>
-                <div className="sm:text-right">
-                    <h3 className="text-2xl md:text-3xl font-black text-emerald-400 italic tracking-tighter">
+                <div className="text-center sm:text-right">
+                    <h3 className="text-2xl md:text-4xl font-black text-emerald-400 italic tracking-tighter">
                         Rp {(stats.bruto * 1.15).toLocaleString()}*
                     </h3>
                     <p className="text-[8px] text-white/30 uppercase font-bold tracking-[0.2em]">Forecasting Pertumbuhan +15%</p>
@@ -234,63 +242,63 @@ export default function Dashboard() {
 
         {/* STATS GRID */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8 text-white">
-          <div className="bg-blue-600 p-4 md:p-6 rounded-3xl shadow-xl border-b-8 border-blue-800">
+          <div className="bg-blue-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-8 border-blue-800">
             <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1 flex items-center gap-1"><ArrowRightLeft size={10} /> Total Unit</p>
             <h3 className="text-xl md:text-3xl font-black italic">{stats.motor} <span className="text-[10px]">U</span></h3>
           </div>
-          <div className="bg-emerald-600 p-4 md:p-6 rounded-3xl shadow-xl border-b-8 border-emerald-800">
+          <div className="bg-emerald-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-8 border-emerald-800">
             <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1 flex items-center gap-1"><TrendingUp size={10} /> Omzet Bruto</p>
-            <h3 className="text-[14px] md:text-2xl font-black italic">Rp {stats.bruto.toLocaleString()}</h3>
+            <h3 className="text-lg md:text-2xl font-black italic truncate">Rp {stats.bruto.toLocaleString()}</h3>
           </div>
-          <div className="bg-rose-600 p-4 md:p-6 rounded-3xl shadow-xl border-b-8 border-rose-800">
-            <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1">Pengeluaran Ops</p>
-            <h3 className="text-[14px] md:text-2xl font-black italic">Rp {stats.biaya.toLocaleString()}</h3>
+          <div className="bg-rose-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-8 border-rose-800">
+            <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1">Pengeluaran</p>
+            <h3 className="text-lg md:text-2xl font-black italic truncate">Rp {stats.biaya.toLocaleString()}</h3>
           </div>
-          <div className="bg-orange-600 p-4 md:p-6 rounded-3xl shadow-xl border-b-8 border-orange-800">
+          <div className="bg-orange-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-8 border-orange-800">
             <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1 flex items-center gap-1"><Wallet size={10} /> Profit Netto</p>
-            <h3 className="text-[14px] md:text-2xl font-black italic">Rp {stats.netto.toLocaleString()}</h3>
+            <h3 className="text-lg md:text-2xl font-black italic truncate">Rp {stats.netto.toLocaleString()}</h3>
           </div>
         </div>
 
-        {/* BAGI HASIL INFO (FIXED PROFIT SHARING LOGIC) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-10 text-slate-800">
-          <div className="bg-white p-5 md:p-6 rounded-3xl border-l-[10px] border-emerald-500 shadow-xl">
-            <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase">Total Gaji Operator (40%)</p>
-            <h4 className="text-lg md:text-3xl font-black italic">Rp {stats.jatahKaryawan.toLocaleString()}</h4>
+        {/* PROFIT INFO */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-10">
+          <div className="bg-white p-6 rounded-[2rem] border-l-[10px] border-emerald-500 shadow-xl">
+            <p className="text-[9px] font-black text-slate-400 uppercase">Total Gaji Operator (40%)</p>
+            <h4 className="text-xl md:text-3xl font-black italic text-slate-800">Rp {stats.jatahKaryawan.toLocaleString()}</h4>
           </div>
-          <div className="bg-white p-5 md:p-6 rounded-3xl border-l-[10px] border-blue-500 shadow-xl">
-            <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase">Setoran Bersih Owner</p>
-            <h4 className="text-lg md:text-3xl font-black italic">Rp {stats.netto.toLocaleString()}</h4>
+          <div className="bg-white p-6 rounded-[2rem] border-l-[10px] border-blue-500 shadow-xl">
+            <p className="text-[9px] font-black text-slate-400 uppercase">Setoran Bersih Owner</p>
+            <h4 className="text-xl md:text-3xl font-black italic text-slate-800">Rp {stats.netto.toLocaleString()}</h4>
           </div>
         </div>
 
-        {/* TABLE DATA AKTIVITAS TERBARU */}
-        <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200">
-          <div className="bg-[#1e3a8a] p-4 md:p-5 text-white flex justify-between items-center font-black text-[10px] uppercase italic">
+        {/* TABLE SECTION */}
+        <div className="bg-white rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-[#1e3a8a] p-5 text-white flex justify-between items-center font-black text-[10px] uppercase italic">
             <span>Riwayat Transaksi Terkini</span>
-            <span className="bg-blue-500 px-3 py-1 rounded-full text-[8px] not-italic">LIVE TRACKING</span>
+            <span className="bg-blue-500 px-3 py-1 rounded-full text-[8px] not-italic animate-pulse">LIVE</span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+            <table className="w-full text-left min-w-[700px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-400 text-[9px] uppercase font-black border-b border-slate-100">
-                  <th className="p-4">Nama Operator</th>
-                  <th className="p-4">Jenis Layanan</th>
-                  <th className="p-4">Waktu Transaksi</th>
-                  <th className="p-4 text-right pe-6 md:pe-10">Total Biaya</th>
+                  <th className="p-6">Nama Operator</th>
+                  <th className="p-6">Jenis Layanan</th>
+                  <th className="p-6">Waktu Transaksi</th>
+                  <th className="p-6 text-right pe-10">Total Biaya</th>
                 </tr>
               </thead>
-              <tbody className="text-slate-700 text-[11px] md:text-[12px] font-bold uppercase italic">
+              <tbody className="text-slate-700 text-[12px] font-bold uppercase italic">
                 {transaksi.slice(0, 10).map((item) => (
                   <tr key={item.Id} className="border-b border-slate-50 hover:bg-blue-50/50 transition-colors">
-                    <td className="p-4 font-black text-blue-900">
+                    <td className="p-6 font-black text-blue-900">
                       {mapKaryawan[item.KaryawanId] || <span className="text-rose-400">ID: {item.KaryawanId}</span>}
                     </td>
-                    <td className="p-4 text-slate-500 font-medium">{item.Layanan || "Cuci Motor"}</td>
-                    <td className="p-4 text-slate-400 font-medium not-italic">
+                    <td className="p-6 text-slate-500 font-medium">{item.Layanan || "Cuci Motor"}</td>
+                    <td className="p-6 text-slate-400 font-medium not-italic">
                       {new Date(item.Tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit' })}
                     </td>
-                    <td className="p-4 text-right font-black text-emerald-600 text-[13px] md:text-[14px] pe-6 md:pe-10">
+                    <td className="p-6 text-right font-black text-emerald-600 text-[15px] pe-10">
                       Rp {Number(item.Total).toLocaleString()}
                     </td>
                   </tr>
