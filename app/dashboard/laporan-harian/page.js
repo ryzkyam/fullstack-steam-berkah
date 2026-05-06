@@ -15,24 +15,20 @@ export default function LaporanHarian() {
   const fetchLaporanHarian = async () => {
     setLoading(true);
     try {
-      // 1. Setup Range Tanggal (Hari Ini WIB)
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
-      // 2. Ambil Master Karyawan (Sesuai Skema: Tabel Karyawans, Kolom Nama & Id)
+      // Ambil data karyawan untuk mapping nama
       const { data: mKaryawan } = await supabase
         .from("Karyawans") 
         .select("Id, Nama");
 
       const mapKaryawan = {};
       if (mKaryawan) {
-        mKaryawan.forEach(k => {
-          mapKaryawan[k.Id] = k.Nama;
-        });
+        mKaryawan.forEach(k => { mapKaryawan[k.Id] = k.Nama; });
       }
 
-      // 3. Ambil Transaksi (Tabel: Transaksis)
       const { data: trans, error } = await supabase
         .from("Transaksis")
         .select("*")
@@ -43,7 +39,6 @@ export default function LaporanHarian() {
       if (error) throw error;
 
       if (trans) {
-        // MAPPING: Jika nama tidak ada, tampilkan ID-nya daripada "Umum"
         const dataLengkap = trans.map(t => ({
           ...t,
           namaKaryawan: mapKaryawan[t.KaryawanId] || `ID: ${t.KaryawanId || '?'}`
@@ -51,7 +46,6 @@ export default function LaporanHarian() {
 
         setListTransaksi(dataLengkap);
 
-        // 4. Hitung Rekap Gaji per Karyawan
         const rekap = dataLengkap.reduce((acc, curr) => {
           const nama = curr.namaKaryawan;
           if (!acc[nama]) {
@@ -64,7 +58,6 @@ export default function LaporanHarian() {
 
         setDataHarian(Object.values(rekap));
 
-        // 5. Update Statistik Ringkasan
         const totalPendapatan = dataLengkap.reduce((sum, item) => sum + (Number(item.Total) || 0), 0);
         setSummary({
           total: totalPendapatan,
@@ -84,56 +77,60 @@ export default function LaporanHarian() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-slate-100 relative text-slate-900">
-      {/* TOMBOL HAMBURGER */}
+    <div className="flex min-h-screen bg-slate-100 relative text-slate-900 font-sans">
+      {/* TOMBOL HAMBURGER MOBILE */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="md:hidden fixed top-5 left-5 z-50 bg-[#2b459a] text-white p-3 rounded-xl shadow-2xl"
+        className="md:hidden fixed top-5 left-5 z-[70] bg-[#2b459a] text-white p-3 rounded-xl shadow-2xl border border-blue-400"
       >
         {isSidebarOpen ? "✕" : "☰"}
       </button>
 
-      {/* OVERLAY */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
+      {/* SIDEBAR MINIMALIS (HANYA 3 MENU) */}
+      <aside className={`
+        fixed md:sticky top-0 left-0 z-50 
+        w-64 h-screen bg-[#1e3a8a] text-white p-6 
+        transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        shadow-2xl flex flex-col
+      `}>
+        <div className="mb-10 mt-10 md:mt-0">
+            <h2 className="text-xl font-black italic uppercase tracking-tighter leading-none">
+              STEAM BERKAH 🚀
+            </h2>
+            <p className="text-[8px] font-bold opacity-50 tracking-[0.3em] mt-1 uppercase">Management System</p>
+        </div>
 
-      {/* SIDEBAR */}
-      <aside
-        className={`fixed md:sticky top-0 left-0 z-40 w-64 h-screen bg-[#2b459a] text-white p-4 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} shadow-2xl border-r border-blue-800`}
-      >
-        <h2 className="text-xl font-bold mb-8 italic text-center md:text-left mt-10 md:mt-0 uppercase">
-          STEAM BERKAH 🚀
-        </h2>
-        <nav className="space-y-2 text-xs font-bold uppercase tracking-wider">
+        <nav className="space-y-1 text-[10px] font-black uppercase tracking-widest">
           <Link href="/dashboard" onClick={() => setIsSidebarOpen(false)}>
-            <div className={`p-4 rounded-xl cursor-pointer hover:bg-blue-800 ${pathname === "/dashboard" ? "bg-blue-600 shadow-lg" : ""}`}>
-              📊 Dashboard
+            <div className={`p-4 rounded-xl mb-2 flex items-center gap-3 transition-all ${pathname === "/dashboard" ? "bg-blue-600 shadow-lg italic" : "opacity-60 hover:opacity-100 hover:bg-white/10"}`}>
+              📊 Dashboard Utama
             </div>
           </Link>
+          
+          <div className="h-px bg-white/10 my-4"></div>
+
           <Link href="/dashboard/transaksi" onClick={() => setIsSidebarOpen(false)}>
-            <div className={`p-4 rounded-xl hover:bg-blue-800 cursor-pointer ${pathname === "/dashboard/transaksi" ? "bg-blue-600" : ""}`}>
-              📝 Transaksi
+            <div className={`p-4 rounded-xl flex items-center gap-3 transition-all ${pathname === "/dashboard/transaksi" ? "bg-blue-600 shadow-lg italic" : "opacity-60 hover:opacity-100 hover:bg-white/10"}`}>
+              📝 Input Transaksi
             </div>
           </Link>
+
           <Link href="/dashboard/laporan-harian" onClick={() => setIsSidebarOpen(false)}>
-            <div className={`p-4 rounded-xl cursor-pointer ${pathname === "/dashboard/laporan-harian" ? "bg-blue-600 shadow-lg" : "hover:bg-blue-800"}`}>
+            <div className={`p-4 rounded-xl flex items-center gap-3 transition-all ${pathname === "/dashboard/laporan-harian" ? "bg-blue-600 shadow-lg italic" : "opacity-60 hover:opacity-100 hover:bg-white/10"}`}>
               📅 Laporan Harian
             </div>
           </Link>
-          <Link href="/dashboard/pengeluaran" onClick={() => setIsSidebarOpen(false)}>
-            <div className="p-4 rounded-xl hover:bg-blue-800 cursor-pointer">
-              💸 Pengeluaran
-            </div>
-          </Link>
         </nav>
+
+        {/* FOOTER SIDEBAR KECIL */}
+        <div className="mt-auto pt-6 border-t border-white/10 opacity-30 text-[8px] font-bold uppercase tracking-widest">
+            v2.0 Beta Branch Sync
+        </div>
       </aside>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 p-4 md:p-8 w-full">
+      <main className="flex-1 p-4 md:p-8 w-full">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 mt-16 md:mt-0">
           <div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter">Laporan Hari Ini</h1>
@@ -143,52 +140,53 @@ export default function LaporanHarian() {
           </div>
           <button
             onClick={fetchLaporanHarian}
-            className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black shadow-lg hover:bg-blue-700 transition-all active:scale-95"
+            className="bg-white border border-slate-200 text-slate-900 px-6 py-3 rounded-xl text-[10px] font-black shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center gap-2"
           >
-            {loading ? "🔄 LOADING..." : "🔄 SYNC DATA TERBARU"}
+            {loading ? "🔄 LOADING..." : "🔄 REFRESH DATA"}
           </button>
         </div>
 
         {/* STATISTIK RINGKASAN */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 text-white">
-          <div className="bg-[#15803d] p-7 rounded-[2rem] shadow-xl border-b-8 border-green-900">
-            <p className="text-[10px] font-bold uppercase opacity-70 mb-1">Omzet Masuk</p>
-            <h3 className="text-3xl font-black italic">Rp {summary.total.toLocaleString()}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          <div className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-md transition-all">
+            <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Total Omzet</p>
+            <h3 className="text-2xl font-black italic text-slate-800">Rp {summary.total.toLocaleString()}</h3>
           </div>
-          <div className="bg-[#1e40af] p-7 rounded-[2rem] shadow-xl border-b-8 border-blue-900">
-            <p className="text-[10px] font-bold uppercase opacity-70 mb-1">Owner (60%)</p>
-            <h3 className="text-3xl font-black italic">Rp {summary.owner.toLocaleString()}</h3>
+          <div className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-md transition-all">
+            <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest text-blue-500">Owner (60%)</p>
+            <h3 className="text-2xl font-black italic text-blue-700">Rp {summary.owner.toLocaleString()}</h3>
           </div>
-          <div className="bg-[#c2410c] p-7 rounded-[2rem] shadow-xl border-b-8 border-orange-900">
-            <p className="text-[10px] font-bold uppercase opacity-70 mb-1">Gaji Karyawan (40%)</p>
-            <h3 className="text-3xl font-black italic">Rp {summary.karyawan.toLocaleString()}</h3>
+          <div className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-md transition-all">
+            <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest text-orange-500">Gaji 40%</p>
+            <h3 className="text-2xl font-black italic text-orange-600">Rp {summary.karyawan.toLocaleString()}</h3>
           </div>
         </div>
 
-        {/* TABEL 1: REKAP GAJI */}
-        <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 mb-8">
-          <div className="bg-[#15803d] p-4 text-white font-black text-[11px] uppercase italic">
-            📊 Rekap Gaji Karyawan
+        {/* TABEL REKAP GAJI */}
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden mb-8">
+          <div className="bg-slate-800 p-4 text-white font-black text-[9px] uppercase tracking-[0.3em] flex justify-between">
+            <span>📊 Rekap Gaji Personil</span>
+            <span className="opacity-50 italic text-[8px]">Live Data</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 border-b">
+              <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 border-b tracking-widest">
                 <tr>
                   <th className="p-4 ps-8">Nama Karyawan</th>
-                  <th className="p-4 text-center">Total Motor</th>
+                  <th className="p-4 text-center">Unit</th>
                   <th className="p-4">Omzet Bruto</th>
                   <th className="p-4 text-right pe-8">Gaji (40%)</th>
                 </tr>
               </thead>
-              <tbody className="text-[12px] font-bold uppercase">
+              <tbody className="text-[11px] font-bold uppercase text-slate-600">
                 {dataHarian.map((item, idx) => (
-                  <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="p-4 ps-8 text-slate-900">{item.nama}</td>
+                  <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50 transition-all">
+                    <td className="p-4 ps-8 font-black text-slate-800">{item.nama}</td>
                     <td className="p-4 text-center">
-                      <span className="bg-slate-100 px-3 py-1 rounded-lg">{item.totalMotor}</span>
+                      <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500">{item.totalMotor}</span>
                     </td>
-                    <td className="p-4">Rp {item.totalDuit.toLocaleString()}</td>
-                    <td className="p-4 text-right pe-8 text-green-600">
+                    <td className="p-4 text-slate-400">Rp {item.totalDuit.toLocaleString()}</td>
+                    <td className="p-4 text-right pe-8 text-emerald-600 font-black text-sm italic">
                       Rp {(item.totalDuit * 0.4).toLocaleString()}
                     </td>
                   </tr>
@@ -198,14 +196,14 @@ export default function LaporanHarian() {
           </div>
         </div>
 
-        {/* TABEL 2: DETAIL TRANSAKSI */}
-        <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200">
-          <div className="bg-[#1e3a8a] p-4 text-white font-black text-[11px] uppercase italic">
-            🕒 Aktivitas Transaksi Hari Ini
+        {/* TABEL DETAIL TRANSAKSI */}
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-blue-900 p-4 text-white font-black text-[9px] uppercase tracking-[0.3em]">
+            🕒 Detail Transaksi Masuk
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[11px]">
-              <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 border-b">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 border-b tracking-widest">
                 <tr>
                   <th className="p-4 ps-8">Jam</th>
                   <th className="p-4">Karyawan</th>
@@ -214,20 +212,20 @@ export default function LaporanHarian() {
                   <th className="p-4 text-right pe-8">Biaya</th>
                 </tr>
               </thead>
-              <tbody className="font-bold uppercase">
+              <tbody className="text-[10px] font-bold uppercase text-slate-600">
                 {listTransaksi.map((item, idx) => (
-                  <tr key={idx} className="border-b border-slate-50 hover:bg-blue-50/30 transition-all">
-                    <td className="p-4 ps-8 text-blue-600">
+                  <tr key={idx} className="border-b border-slate-50 hover:bg-blue-50/50 transition-all">
+                    <td className="p-4 ps-8 text-blue-600 font-black italic">
                       {new Date(item.Tanggal).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
                     </td>
-                    <td className="p-4 text-slate-900">{item.namaKaryawan}</td>
-                    <td className="p-4 text-slate-500 italic">{item.Layanan}</td>
+                    <td className="p-4 text-slate-800">{item.namaKaryawan}</td>
+                    <td className="p-4 text-slate-400 italic font-medium">{item.Layanan}</td>
                     <td className="p-4">
-                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded italic">
-                        #{item.MotorId || "Motor"}
+                      <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-black tracking-tighter">
+                        #{item.MotorId || "UNIT"}
                       </span>
                     </td>
-                    <td className="p-4 text-right pe-8 font-black text-slate-900">
+                    <td className="p-4 text-right pe-8 font-black text-slate-800">
                       Rp {Number(item.Total).toLocaleString()}
                     </td>
                   </tr>
@@ -236,7 +234,7 @@ export default function LaporanHarian() {
             </table>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
