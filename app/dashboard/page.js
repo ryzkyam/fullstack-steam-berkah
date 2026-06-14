@@ -70,8 +70,11 @@ export default function Dashboard() {
         setMapKaryawan(mapping);
       }
 
-      const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01T00:00:00`;
-      const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-31T23:59:59`;
+      // Ambil tanggal terakhir secara dinamis (Parameter '0' di parameter day otomatis mundur ke hari terakhir bulan sebelumnya)
+const totalHari = new Date(selectedYear, selectedMonth, 0).getDate();
+
+const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01T00:00:00`;
+const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(totalHari).padStart(2, "0")}T23:59:59`;
 
       let queryTrans = supabase
         .from("Transaksis")
