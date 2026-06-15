@@ -1,13 +1,39 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
+import {
+  BrainCircuit,
+  ClipboardList,
+  History,
+  LayoutDashboard,
+  Menu,
+  Package,
+  PlusCircle,
+  Receipt,
+  Users,
+  Wallet,
+  X,
+  RefreshCw,
+  MapPin,
+  Globe,
+  Layers,
+  DollarSign,
+  UserCheck,
+  TrendingUp,
+  Car
+} from "lucide-react";
 
 export default function JasaKaryawanDashboard() {
   const [dataRingkasan, setDataRingkasan] = useState([]);
   const [branches, setBranches] = useState([]); 
+  const [selectedBranch, setSelectedBranch] = useState("all");
   const [stats, setStats] = useState({ total: 0, owner: 0, karyawan: 0 });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const pathname = usePathname();
 
   const formatRupiah = (num) =>
     new Intl.NumberFormat("id-ID", {
@@ -19,8 +45,12 @@ export default function JasaKaryawanDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Ambil Data Transaksi + Relasi Karyawan + Cabang
-      const { data, error } = await supabase
+      // 1. Ambil List Cabang untuk Dropdown & Navigasi
+      const { data: bData } = await supabase.from("branches").select("*").order("id", { ascending: true });
+      if (bData) setBranches(bData);
+
+      // 2. Ambil Data Transaksi + Relasi Karyawan + Cabang
+      let query = supabase
         .from("Transaksis")
         .select(`
           Total, 
@@ -32,21 +62,25 @@ export default function JasaKaryawanDashboard() {
           )
         `);
 
-      const { data: bData } = await supabase.from("branches").select("*").order("id", { ascending: true });
-
+      const { data, error } = await query;
       if (error) throw error;
 
       if (data) {
-        setBranches(bData || []);
-        const total = data.reduce((sum, item) => sum + (Number(item.Total) || 0), 0);
+        // Filter data di level client-side agar stats atas sinkron dengan pilihan cabang
+        const filteredData = data.filter((trx) => {
+          if (selectedBranch === "all") return true;
+          return trx.Karyawans?.branch_id?.toString() === selectedBranch;
+        });
+
+        const total = filteredData.reduce((sum, item) => sum + (Number(item.Total) || 0), 0);
         setStats({ total, owner: total * 0.6, karyawan: total * 0.4 });
 
         const jasaMap = {};
-        data.forEach((trx) => {
+        filteredData.forEach((trx) => {
           const k = trx.Karyawans;
-          const nama = k?.Nama || "Umum";
+          const nama = k?.Nama || "Operator Umum";
           const bId = k?.branch_id || 999;
-          const bName = k?.branches?.nama_cabang || "Tanpa Cabang";
+          const bName = k?.branches?.nama_cabang || "Pusat / Tanpa Cabang";
 
           if (!jasaMap[nama]) {
             jasaMap[nama] = { nama, unit: 0, total: 0, bId, bName };
@@ -54,97 +88,259 @@ export default function JasaKaryawanDashboard() {
           jasaMap[nama].unit += 1;
           jasaMap[nama].total += Number(trx.Total) || 0;
         });
+        
         setDataRingkasan(Object.values(jasaMap));
       }
     } catch (err) {
-      console.error(err);
+      console.error("Gagal memuat komisi karyawan:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+  }, [selectedBranch]);
+
+  const formatBranchName = (name) => {
+    if (!name) return "UTAMA";
+    return name.toUpperCase() === "UMUM" ? "CABANG UTAMA" : name.toUpperCase();
+  };
 
   return (
-    <div className="flex min-h-screen bg-slate-100 font-sans p-4 md:p-10">
-      <div className="max-w-6xl mx-auto w-full">
-        
-        {/* HEADER & REFRESH */}
-        <div className="flex justify-between items-end mb-10">
-          <div>
-            <h1 className="text-3xl font-black text-slate-800 italic uppercase tracking-tighter">Gaji Operator</h1>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pembagian Komisi 40% per Cabang</p>
-          </div>
-          <button onClick={fetchData} className="bg-white p-3 rounded-2xl shadow-sm hover:shadow-md transition-all text-xl">
-            {loading ? "⏳" : "🔄"}
-          </button>
-        </div>
+    <div className="flex min-h-screen bg-slate-50/50 font-sans antialiased text-slate-800 relative overflow-x-hidden">
+      
+      {/* MOBILE TRIGGER */}
+      <button
+        onClick={() => setIsSidebarOpen(true)}
+        className="md:hidden fixed top-4 left-4 z-[60] bg-white text-slate-700 p-2.5 rounded-xl shadow-sm border border-slate-200"
+      >
+        <Menu size={18} />
+      </button>
 
-        {/* STATS ATAS (OMZET, OWNER, KARYAWAN) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border-b-4 border-emerald-500">
-            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Omzet Bruto</p>
-            <h2 className="text-2xl font-black text-slate-800 italic">{formatRupiah(stats.total)}</h2>
-          </div>
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border-b-4 border-blue-600">
-            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Gross Owner (60%)</p>
-            <h2 className="text-2xl font-black text-blue-600 italic">{formatRupiah(stats.owner)}</h2>
-          </div>
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border-b-4 border-orange-500">
-            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Jatah Karyawan (40%)</p>
-            <h2 className="text-2xl font-black text-orange-500 italic">{formatRupiah(stats.karyawan)}</h2>
-          </div>
-        </div>
-
-        {/* GRID CARD GAJI OPERATOR */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-          {dataRingkasan.map((item, idx) => (
-            <div key={idx} className="bg-white rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 border border-slate-100">
-              
-              {/* BADGE PERSENTASE */}
-              <div className="absolute top-6 right-6 bg-emerald-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">40%</div>
-
-              <div className="mb-6">
-                <h3 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter mb-1">{item.nama}</h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.unit} KENDARAAN</span>
-                  {/* BADGE BLUEPRINT CABANG DI DALAM CARD */}
-                  <span className="text-[9px] font-black bg-blue-600 text-white px-3 py-0.5 rounded-lg italic shadow-sm uppercase tracking-tighter">
-                    📍 {item.bName}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase border-b border-slate-50 pb-2">
-                  <span>Total Transaksi</span>
-                  <span className="text-slate-800 text-sm">{formatRupiah(item.total)}</span>
-                </div>
-
-                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                  <p className="text-[9px] font-black text-slate-400 uppercase mb-2 tracking-[0.2em]">Gaji Yang Diterima</p>
-                  <h4 className="text-3xl font-black text-emerald-600 italic tracking-tighter">
-                    {formatRupiah(item.total * 0.4)}
-                  </h4>
-                </div>
-              </div>
-
-              {/* DEKORASI BACKGROUND CARD */}
-              <div className="absolute -bottom-4 -right-4 text-slate-50 text-8xl font-black opacity-10 pointer-events-none uppercase italic">
-                {item.nama.split(' ')[0]}
+      {/* SIDEBAR - HIGH CLASS NAVY SLATE */}
+      <aside
+        className={`fixed md:sticky top-0 left-0 z-[60] w-64 h-screen bg-[#1e293b] text-slate-200 p-5 transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} shadow-xl flex flex-col justify-between`}
+      >
+        <div>
+          <div className="flex justify-between items-center mb-8 px-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-sm">SB</div>
+              <div>
+                <h2 className="text-base font-bold tracking-tight text-white uppercase leading-none">STEAM BERKAH</h2>
+                <p className="text-[9px] font-semibold text-slate-500 tracking-wider mt-1 uppercase">Management System</p>
               </div>
             </div>
-          ))}
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-white">
+              <X size={20} />
+            </button>
+          </div>
+
+          <nav className="space-y-1 text-sm font-medium opacity-95 overflow-y-auto flex-1 pr-1 scrollbar-hide">
+            <p className="px-4 py-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pustaka Utama</p>
+            
+            <Link href="/dashboard" onClick={() => setIsSidebarOpen(false)}>
+              <div className={`px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${pathname === "/dashboard" ? "bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/20" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}>
+                <LayoutDashboard size={16} /> Monitoring Utama
+              </div>
+            </Link>
+
+            <Link href="/dashboard/analytics" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-3 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition-all font-bold flex items-center gap-3 my-2 shadow-sm">
+                <BrainCircuit size={16} /> Analitik AI (Prophet)
+              </div>
+            </Link>
+
+            <p className="px-4 py-1.5 mt-5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">Unit Kerja Cabang</p>
+            <div
+              onClick={() => { setSelectedBranch("all"); setIsSidebarOpen(false); }}
+              className={`px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-2.5 text-xs transition-all ${selectedBranch === "all" ? "bg-slate-800 text-white font-semibold border-l-4 border-blue-500 pl-3" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+            >
+              <Globe size={14} /> Gabungan Semua Unit
+            </div>
+            {branches.map((b) => (
+              <div
+                key={b.id}
+                onClick={() => { setSelectedBranch(b.id.toString()); setIsSidebarOpen(false); }}
+                className={`px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-2.5 text-xs transition-all ${selectedBranch === b.id.toString() ? "bg-slate-800 text-white font-semibold border-l-4 border-blue-500 pl-3" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+              >
+                <MapPin size={12} /> {b.nama_cabang}
+              </div>
+            ))}
+
+            <p className="px-4 py-1.5 mt-5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">Operasional & Log</p>
+            <Link href="/dashboard/transaksi" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3">
+                <Receipt size={14} /> Input Transaksi
+              </div>
+            </Link>
+            <Link href="/dashboard/laporan-harian" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3">
+                <ClipboardList size={14} /> Laporan Harian
+              </div>
+            </Link>
+            <Link href="/dashboard/jasa-operator" onClick={() => setIsSidebarOpen(false)}>
+              <div className={`px-4 py-2.5 rounded-xl flex items-center gap-3 transition-all ${pathname === "/dashboard/jasa-operator" ? "bg-blue-600 text-white font-semibold" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}>
+                <History size={14} /> Gaji per-Operator
+              </div>
+            </Link>
+            <Link href="/dashboard/pengeluaran" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3">
+                <Wallet size={14} /> Biaya Pengeluaran
+              </div>
+            </Link>
+            <Link href="/dashboard/stock" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3">
+                <Package size={14} /> Stok Barang
+              </div>
+            </Link>
+            <Link href="/dashboard/karyawan" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3">
+                <Users size={14} /> Manajemen Karyawan
+              </div>
+            </Link>
+
+            <div className="h-px bg-slate-800 my-4"></div>
+            <Link href="/dashboard/branches" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-3 rounded-xl hover:bg-amber-500 hover:text-slate-950 text-amber-400 border border-amber-500/20 flex items-center gap-3 transition-all font-semibold">
+                <PlusCircle size={14} /> New Branch Unit
+              </div>
+            </Link>
+          </nav>
+        </div>
+        
+        <div className="border-t border-slate-800 pt-4 mt-auto space-y-3">
+          <button 
+            onClick={fetchData}
+            className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-all border border-slate-700/60 active:scale-98 flex items-center justify-center gap-2 shadow-sm"
+          >
+            <RefreshCw size={12} className={loading ? "animate-spin text-blue-400" : "text-slate-400"} />
+            Sync Gaji Operator
+          </button>
+        </div>
+      </aside>
+
+      {/* MAIN WORKSPACE */}
+      <main className="flex-1 p-6 md:p-10 w-full max-w-5xl mx-auto min-w-0">
+        
+        {/* TOP HEADER CONTROLS */}
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 pb-5">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">
+              Bagi Jasa & Komisi Operator
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">Akumulasi pendapatan real-time dengan skema komisi 40%.</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-slate-200 w-full sm:w-auto text-xs font-medium text-slate-700">
+            <div className="flex items-center gap-1.5 px-2 w-full sm:w-auto">
+              <Layers size={14} className="text-slate-400" />
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="outline-none bg-transparent cursor-pointer font-semibold text-slate-800 w-full sm:w-auto"
+              >
+                <option value="all">Semua Cabang / Gabungan</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id.toString()}>
+                    📍 {formatBranchName(b.nama_cabang)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
-        {/* LINK BALIK KE DASHBOARD */}
-        <div className="mt-12 text-center">
-          <Link href="/dashboard" className="text-[10px] font-black text-slate-400 uppercase hover:text-blue-600 transition-all tracking-widest underline decoration-2 underline-offset-8">
+        {/* METRICS METERS (STATS) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80">
+            <div className="flex justify-between items-center mb-1">
+              <p className="text-xs font-semibold text-slate-400 tracking-wider uppercase">Omzet Bruto Terfilter</p>
+              <TrendingUp size={14} className="text-slate-400" />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-slate-900 truncate">{formatRupiah(stats.total)}</h3>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 border-b-2 border-b-blue-500">
+            <div className="flex justify-between items-center mb-1">
+              <p className="text-xs font-semibold text-blue-500 tracking-wider uppercase">Gross Owner (60%)</p>
+              <DollarSign size={14} className="text-blue-500" />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-blue-600 truncate">{formatRupiah(stats.owner)}</h3>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 border-b-2 border-b-emerald-500">
+            <div className="flex justify-between items-center mb-1">
+              <p className="text-xs font-semibold text-emerald-600 tracking-wider uppercase">Total Jatah Karyawan (40%)</p>
+              <Users size={14} className="text-emerald-500" />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-emerald-600 truncate">{formatRupiah(stats.karyawan)}</h3>
+          </div>
+        </div>
+
+        {/* CARDS GRID SYSTEM FOR OPERATORS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {dataRingkasan.length === 0 ? (
+            <div className="col-span-full bg-white rounded-2xl p-12 text-center border border-slate-200 text-xs text-slate-400 font-medium">
+              Tidak ada aktivitas kerja operator yang tercatat pada kriteria filter cabang ini.
+            </div>
+          ) : (
+            dataRingkasan.map((item, idx) => (
+              <div 
+                key={idx} 
+                className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between hover:border-slate-300 transition-all duration-200 group"
+              >
+                {/* CARD INNER HEADER */}
+                <div className="p-6 pb-4 border-b border-slate-100 bg-slate-50/50">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                        <UserCheck size={16} className="text-slate-400" />
+                        {item.nama}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded-md">
+                          <Car size={11} /> {item.unit} Unit
+                        </span>
+                        <span className="text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md uppercase">
+                          📍 {formatBranchName(item.bName)}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-extrabold bg-emerald-50 text-emerald-600 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                      KMS 40%
+                    </span>
+                  </div>
+                </div>
+
+                {/* CARD BODY WITH REVENUE SUMMARY */}
+                <div className="p-6 space-y-4 flex-1">
+                  <div className="flex justify-between items-center text-xs text-slate-500 font-medium border-b border-dashed border-slate-200 pb-2">
+                    <span>Bruto Hasil Cuci</span>
+                    <span className="text-slate-800 font-bold">{formatRupiah(item.total)}</span>
+                  </div>
+
+                  <div className="bg-emerald-50/40 border border-emerald-100 p-4 rounded-xl">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gaji Bersih Diterima</p>
+                    <h4 className="text-2xl font-bold text-emerald-600 tracking-tight">
+                      {formatRupiah(item.total * 0.4)}
+                    </h4>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* BOTTOM FOOTER NAVIGATION */}
+        <div className="mt-10 text-center border-t border-slate-200 pt-6">
+          <Link 
+            href="/dashboard" 
+            className="text-xs font-semibold text-slate-400 hover:text-blue-600 transition-colors inline-flex items-center gap-1.5 underline decoration-slate-200 hover:decoration-blue-400 underline-offset-4"
+          >
             ← Kembali ke Dashboard Utama
           </Link>
         </div>
 
-      </div>
+      </main>
     </div>
   );
 }

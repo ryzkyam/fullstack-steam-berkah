@@ -18,6 +18,9 @@ import {
   Users,
   Wallet,
   X,
+  RefreshCw,
+  MapPin,
+  Globe
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -30,6 +33,7 @@ export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [branches, setBranches] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState("all");
+  const [loading, setLoading] = useState(false);
 
   const [stats, setStats] = useState({
     motor: 0,
@@ -40,13 +44,12 @@ export default function Dashboard() {
     netto: 0,
   });
 
-  // STATE BARU UNTUK FITUR TREN
   const [trends, setTrends] = useState({ topLayanan: "-", topKategori: "-" });
-
   const [mapKaryawan, setMapKaryawan] = useState({});
   const pathname = usePathname();
 
   const fetchData = async () => {
+    setLoading(true);
     try {
       const { data: resB } = await supabase
         .from("branches")
@@ -70,22 +73,18 @@ export default function Dashboard() {
         setMapKaryawan(mapping);
       }
 
-      // Ambil tanggal terakhir secara dinamis (Parameter '0' di parameter day otomatis mundur ke hari terakhir bulan sebelumnya)
-const totalHari = new Date(selectedYear, selectedMonth, 0).getDate();
-
-const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01T00:00:00`;
-const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(totalHari).padStart(2, "0")}T23:59:59`;
+      const totalHari = new Date(selectedYear, selectedMonth, 0).getDate();
+      const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01T00:00:00`;
+      const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(totalHari).padStart(2, "0")}T23:59:59`;
 
       let queryTrans = supabase
         .from("Transaksis")
-        .select(
-          `
-    *,
-    Motors (
-      Kategori
-    )
-  `,
-        ) // <--- INI WAJIB ADA supaya data Kategori dari tabel Motors ke-tarik
+        .select(`
+          *,
+          Motors (
+            Kategori
+          )
+        `)
         .gte("Tanggal", firstDay)
         .lte("Tanggal", lastDay);
 
@@ -107,15 +106,9 @@ const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${Str
         ]);
 
       if (transData) {
-        const totalBruto = transData.reduce(
-          (sum, item) => sum + (Number(item.Total) || 0),
-          0,
-        );
+        const totalBruto = transData.reduce((sum, item) => sum + (Number(item.Total) || 0), 0);
         const totalBiaya = pengeluaranData
-          ? pengeluaranData.reduce(
-              (sum, item) => sum + (Number(item.Jumlah) || 0),
-              0,
-            )
+          ? pengeluaranData.reduce((sum, item) => sum + (Number(item.Jumlah) || 0), 0)
           : 0;
 
         setStats({
@@ -127,7 +120,6 @@ const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${Str
           netto: totalBruto * 0.6 - totalBiaya,
         });
 
-        // LOGIC HITUNG TREN TERBANYAK
         if (transData.length > 0) {
           const countLayanan = {};
           const countKategori = {};
@@ -138,7 +130,6 @@ const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${Str
               countLayanan[namaLayanan] = (countLayanan[namaLayanan] || 0) + 1;
             }
 
-            // Ambil kategori dari hasil join (item.Motors.Kategori)
             const catMotor = item.Motors?.Kategori || "-";
             if (catMotor !== "-") {
               countKategori[catMotor] = (countKategori[catMotor] || 0) + 1;
@@ -147,22 +138,19 @@ const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${Str
 
           setTrends({
             topLayanan: Object.keys(countLayanan).length
-              ? Object.keys(countLayanan).reduce((a, b) =>
-                  countLayanan[a] > countLayanan[b] ? a : b,
-                )
+              ? Object.keys(countLayanan).reduce((a, b) => countLayanan[a] > countLayanan[b] ? a : b)
               : "Tidak Ada Data",
             topKategori: Object.keys(countKategori).length
-              ? Object.keys(countKategori).reduce((a, b) =>
-                  countKategori[a] > countKategori[b] ? a : b,
-                )
-              : "Tidak Ada Data", // Kalau masih "-" berarti semua kolom di atas nggak ketemu
+              ? Object.keys(countKategori).reduce((a, b) => countKategori[a] > countKategori[b] ? a : b)
+              : "Tidak Ada Data",
           });
         }
-
         setTransaksi(transData);
       }
     } catch (err) {
       console.error("Gagal sinkronisasi data:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -190,16 +178,11 @@ const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${Str
       const parser = new Parser({ delimiter: ";" });
       const csv = parser.parse(finalData);
       const csvWithSeparator = "sep=;\n" + csv;
-      const blob = new Blob([csvWithSeparator], {
-        type: "text/csv;charset=utf-8;",
-      });
+      const blob = new Blob([csvWithSeparator], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute(
-        "download",
-        `LAPORAN_GAJI_SB${selectedBranch}_${selectedMonth}.csv`,
-      );
+      link.setAttribute("download", `LAPORAN_GAJI_SB${selectedBranch}_${selectedMonth}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -213,348 +196,278 @@ const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${Str
   }, [selectedMonth, selectedYear, selectedBranch]);
 
   return (
-    <div className="flex min-h-screen bg-slate-100 relative overflow-x-hidden text-slate-900 font-sans">
+    <div className="flex min-h-screen bg-slate-50 relative overflow-x-hidden text-slate-800 font-sans">
+      
       {/* MOBILE TRIGGER */}
       <button
         onClick={() => setIsSidebarOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-[60] bg-[#2b459a] text-white p-3 rounded-2xl shadow-xl active:scale-95 transition-transform"
+        className="md:hidden fixed top-4 left-4 z-[60] bg-blue-600 text-white p-3 rounded-xl shadow-md active:scale-95 transition-transform border border-blue-500"
       >
-        <Menu size={24} strokeWidth={3} />
+        <Menu size={20} />
       </button>
 
-      {/* BACKDROP OVERLAY FOR MOBILE */}
+      {/* BACKDROP OVERLAY */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[55] md:hidden transition-opacity"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[55] md:hidden transition-opacity"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR - HIGH CLASS NAVY SLATE */}
       <aside
-        className={`fixed md:sticky top-0 left-0 z-[60] w-72 h-screen bg-[#2b459a] text-white p-4 transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} shadow-2xl border-r border-blue-800 flex flex-col`}
+        className={`fixed md:sticky top-0 left-0 z-[60] w-72 h-screen bg-slate-900 text-slate-200 p-6 transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} shadow-xl border-r border-slate-800 flex flex-col justify-between`}
       >
-        <div className="flex justify-between items-center mb-6 mt-2 px-2">
-          <h2 className="text-xl font-bold italic uppercase tracking-tighter flex items-center gap-2">
-            <LayoutDashboard size={20} /> STEAM BERKAH 🚀
-          </h2>
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="md:hidden p-2 hover:bg-white/10 rounded-xl"
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        <nav className="space-y-1 text-[11px] font-bold uppercase tracking-wider opacity-90 overflow-y-auto flex-1 pr-2 scrollbar-hide">
-          <p className="px-4 py-2 text-[8px] opacity-50 tracking-[0.2em]">
-            Pusat Kendali
-          </p>
-          <Link href="/dashboard" onClick={() => setIsSidebarOpen(false)}>
-            <div
-              className={`p-4 rounded-xl cursor-pointer ${pathname === "/dashboard" ? "bg-blue-600 shadow-lg italic" : "hover:bg-blue-800"}`}
-            >
-              📊 Monitoring Utama
+        <div>
+          <div className="flex justify-between items-center mb-8 px-1">
+            <div className="flex items-center gap-2.5">
+              <div className="bg-blue-600 p-2 rounded-xl text-white font-black text-xs">SB</div>
+              <div>
+                <h2 className="text-md font-bold tracking-tight text-white leading-none">STEAM BERKAH</h2>
+                <p className="text-[9px] font-semibold text-slate-500 tracking-wider mt-1 uppercase">Management System</p>
+              </div>
             </div>
-          </Link>
-
-          <Link
-            href="/dashboard/analytics"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <div
-              className={`p-4 rounded-xl cursor-pointer border border-yellow-400 bg-yellow-400/10 text-yellow-400 hover:bg-yellow-400 hover:text-blue-900 transition-all shadow-lg italic flex items-center gap-2 my-2`}
-            >
-              <BrainCircuit size={16} /> ANALITIK AI (PROPHET)
-            </div>
-          </Link>
-
-          <p className="px-4 py-2 mt-4 text-[8px] opacity-50 tracking-[0.2em]">
-            Pilih Unit Cabang
-          </p>
-          <div
-            onClick={() => {
-              setSelectedBranch("all");
-              setIsSidebarOpen(false);
-            }}
-            className={`p-4 rounded-xl cursor-pointer transition-all ${selectedBranch === "all" ? "bg-blue-600 shadow-lg italic" : "hover:bg-blue-800"}`}
-          >
-            🌍 Gabungan Semua Unit
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 hover:bg-slate-800 rounded-xl text-slate-400">
+              <X size={20} />
+            </button>
           </div>
-          {branches.map((b) => (
+
+          <nav className="space-y-1 text-xs font-semibold tracking-wide opacity-95 overflow-y-auto flex-1 pr-1 scrollbar-hide">
+            <p className="px-4 py-1.5 text-[9px] text-slate-500 font-bold uppercase tracking-wider">Pustaka Utama</p>
+            
+            <Link href="/dashboard" onClick={() => setIsSidebarOpen(false)}>
+              <div className={`px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${pathname === "/dashboard" ? "bg-blue-600 text-white shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}>
+                <LayoutDashboard size={16} /> Monitoring Utama
+              </div>
+            </Link>
+
+            <Link href="/dashboard/analytics" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-3 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition-all font-bold flex items-center gap-3 my-2 shadow-sm">
+                <BrainCircuit size={16} /> Analitik AI (Prophet)
+              </div>
+            </Link>
+
+            {/* SELEKTOR CABANG STYLE MINIMALIS */}
+            <p className="px-4 py-1.5 mt-5 text-[9px] text-slate-500 font-bold uppercase tracking-wider">Unit Kerja Cabang</p>
             <div
-              key={b.id}
-              onClick={() => {
-                setSelectedBranch(b.id.toString());
-                setIsSidebarOpen(false);
-              }}
-              className={`p-4 rounded-xl cursor-pointer transition-all ${selectedBranch === b.id.toString() ? "bg-blue-500 shadow-md italic" : "hover:bg-blue-800"}`}
+              onClick={() => { setSelectedBranch("all"); setIsSidebarOpen(false); }}
+              className={`px-4 py-3 rounded-xl cursor-pointer flex items-center gap-2.5 transition-all ${selectedBranch === "all" ? "bg-slate-800 text-white font-bold border-l-4 border-blue-500 pl-3" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
             >
-              📍- {b.nama_cabang}
+              <Globe size={14} /> Gabungan Semua Unit
             </div>
-          ))}
+            {branches.map((b) => (
+              <div
+                key={b.id}
+                onClick={() => { setSelectedBranch(b.id.toString()); setIsSidebarOpen(false); }}
+                className={`px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-2.5 text-[11px] transition-all ${selectedBranch === b.id.toString() ? "bg-slate-800 text-white font-bold border-l-4 border-blue-500 pl-3" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+              >
+                <MapPin size={12} /> {b.nama_cabang}
+              </div>
+            ))}
 
-          <p className="px-4 py-2 mt-4 text-[8px] opacity-50 tracking-[0.2em]">
-            Manajemen Operasional
-          </p>
-          <Link
-            href="/dashboard/transaksi"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <div className="p-4 rounded-xl hover:bg-blue-800 flex items-center gap-2">
-              <Receipt size={14} /> Input Transaksi
-            </div>
-          </Link>
-          <Link
-            href="/dashboard/laporan-harian"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <div className="p-4 rounded-xl hover:bg-blue-800 flex items-center gap-2">
-              <ClipboardList size={14} /> Laporan Harian
-            </div>
-          </Link>
-          <Link
-            href="/dashboard/jasa-operator"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <div className="p-4 rounded-xl hover:bg-blue-800 flex items-center gap-2">
-              <History size={14} /> Gaji per-Operator
-            </div>
-          </Link>
-          <Link
-            href="/dashboard/pengeluaran"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <div className="p-4 rounded-xl hover:bg-blue-800 flex items-center gap-2">
-              <Wallet size={14} /> Biaya Pengeluaran
-            </div>
-          </Link>
-          <Link href="/dashboard/stock" onClick={() => setIsSidebarOpen(false)}>
-            <div className="p-4 rounded-xl hover:bg-blue-800 flex items-center gap-2">
-              <Package size={14} /> Stok Barang
-            </div>
-          </Link>
-          <Link
-            href="/dashboard/karyawan"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <div className="p-4 rounded-xl hover:bg-blue-800 flex items-center gap-2">
-              <Users size={14} /> Manajemen Karyawan
-            </div>
-          </Link>
+            <p className="px-4 py-1.5 mt-5 text-[9px] text-slate-500 font-bold uppercase tracking-wider">Operasional & Log</p>
+            <Link href="/dashboard/transaksi" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-3">
+                <Receipt size={14} /> Input Transaksi
+              </div>
+            </Link>
+            <Link href="/dashboard/laporan-harian" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-3">
+                <ClipboardList size={14} /> Laporan Harian
+              </div>
+            </Link>
+            <Link href="/dashboard/jasa-operator" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-3">
+                <History size={14} /> Gaji per-Operator
+              </div>
+            </Link>
+            <Link href="/dashboard/pengeluaran" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-3">
+                <Wallet size={14} /> Biaya Pengeluaran
+              </div>
+            </Link>
+            <Link href="/dashboard/stock" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-3">
+                <Package size={14} /> Stok Barang
+              </div>
+            </Link>
+            <Link href="/dashboard/karyawan" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-3">
+                <Users size={14} /> Manajemen Karyawan
+              </div>
+            </Link>
 
-          <div className="h-px bg-white/10 my-4"></div>
-          <Link
-            href="/dashboard/branches"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <div className="p-4 rounded-xl hover:bg-yellow-400 hover:text-blue-900 text-yellow-400 border border-yellow-400/20 flex items-center gap-2 transition-all">
-              <PlusCircle size={14} /> Tambah Cabang Baru
-            </div>
-          </Link>
-        </nav>
+            <div className="h-px bg-slate-800 my-4"></div>
+            <Link href="/dashboard/branches" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-3 rounded-xl hover:bg-amber-500 hover:text-slate-950 text-amber-400 border border-amber-500/20 flex items-center gap-3 transition-all">
+                <PlusCircle size={14} /> Tambah Cabang Baru
+              </div>
+            </Link>
+          </nav>
+        </div>
+        <div className="pt-4 border-t border-slate-800 text-slate-600 text-[9px] font-bold tracking-widest uppercase">
+          v2.0 Stable Build
+        </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 p-4 md:p-8 w-full min-w-0">
-        {/* HEADER */}
-        <div className="flex flex-col lg:flex-row justify-between items-center mb-8 gap-6 mt-16 md:mt-0">
-          <h1 className="text-xl md:text-3xl font-black text-slate-800 italic uppercase tracking-tighter leading-tight text-center md:text-left">
-            {selectedBranch === "all"
-              ? "CENTRAL DASHBOARD 🌍"
-              : ` - ${branches.find((b) => b.id.toString() === selectedBranch)?.nama_cabang || ""} 📍`}
-          </h1>
+      {/* MAIN CONTENT WORKSPACE */}
+      <main className="flex-1 p-6 md:p-10 w-full max-w-7xl mx-auto min-w-0">
+        
+        {/* TOP HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 mt-16 sm:mt-0">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">
+              {selectedBranch === "all"
+                ? "Monitoring Central"
+                : `${branches.find((b) => b.id.toString() === selectedBranch)?.nama_cabang || ""} Dashboard`}
+            </h1>
+            <p className="text-xs font-medium text-slate-400 mt-0.5">Ringkasan performa bisnis berkala</p>
+          </div>
 
-          <div className="flex flex-wrap justify-center gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-200 w-full md:w-auto">
+          {/* CONTROLLER BOX */}
+          <div className="flex items-center gap-2.5 bg-white p-2 rounded-2xl shadow-sm border border-slate-200 w-full sm:w-auto">
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="bg-transparent text-[10px] font-black uppercase px-2 outline-none cursor-pointer h-10"
+              className="text-xs font-bold bg-slate-50 text-slate-700 rounded-xl p-2.5 outline-none cursor-pointer border border-transparent focus:border-slate-200"
             >
               {[...Array(12)].map((_, i) => (
                 <option key={i + 1} value={i + 1}>
-                  {new Intl.DateTimeFormat("id-ID", { month: "long" }).format(
-                    new Date(0, i),
-                  )}
+                  {new Intl.DateTimeFormat("id-ID", { month: "long" }).format(new Date(0, i))}
                 </option>
               ))}
             </select>
-            <div className="flex gap-2">
+            <div className="flex gap-2 ml-auto">
               <button
                 onClick={handleExport}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black shadow-lg uppercase flex items-center gap-1 hover:bg-emerald-700 active:scale-95 transition-all"
+                className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
               >
-                <Download size={12} /> Export
+                <Download size={14} /> Export
               </button>
               <button
                 onClick={fetchData}
-                className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black shadow-lg uppercase hover:bg-blue-700 active:scale-95 transition-all"
+                className="p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl transition border border-slate-200/40"
+                title="Sync Data"
               >
-                🔄 Sync
+                <RefreshCw size={14} className={loading ? "animate-spin text-blue-600" : ""} />
               </button>
             </div>
           </div>
         </div>
 
-        {/* AI BANNER */}
-        <div className="bg-slate-900 p-6 rounded-[2rem] shadow-2xl mb-8 border-l-8 border-yellow-400 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform hidden sm:block">
-            <BrainCircuit size={80} className="text-yellow-400" />
+        {/* AI PREDICTION CARD */}
+        <div className="bg-slate-900 p-6 rounded-2xl shadow-sm mb-8 border-l-4 border-amber-500 relative overflow-hidden">
+          <div className="absolute -top-4 -right-4 opacity-5 pointer-events-none">
+            <BrainCircuit size={120} className="text-amber-400" />
           </div>
-          <div className="relative z-10 flex flex-col sm:flex-row justify-between items-center gap-4 text-white">
-            <div className="text-center sm:text-left">
-              <div className="flex items-center justify-center sm:justify-start gap-2">
-                <span className="text-yellow-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
-                  <Sparkles size={10} /> Data Mining: Prophet Mode
+          <div className="relative z-10 flex flex-col sm:flex-row justify-between sm:items-center gap-4 text-white">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles size={12} /> Data Mining Forecast (Prophet)
                 </span>
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
               </div>
-              <h2 className="text-xl md:text-2xl font-black italic tracking-tighter uppercase mt-1">
-                Estimasi Revenue
-              </h2>
+              <h2 className="text-lg font-bold tracking-tight text-slate-100 mt-0.5">Estimasi Pendapatan Bulan Depan</h2>
             </div>
-            <div className="text-center sm:text-right">
-              <h3 className="text-2xl md:text-4xl font-black text-emerald-400 italic tracking-tighter">
-                Rp {(stats.bruto * 1.15).toLocaleString()}*
+            <div className="sm:text-right">
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-400">
+                Rp {(stats.bruto * 1.15).toLocaleString("id-ID")}
               </h3>
-              <p className="text-[8px] text-white/30 uppercase font-bold tracking-[0.2em]">
-                Forecasting Pertumbuhan +15%
-              </p>
+              <p className="text-[10px] text-slate-400 font-medium mt-0.5">Proyeksi pertumbuhan tren +15%</p>
             </div>
           </div>
         </div>
 
-        {/* STATS GRID */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8 text-white">
-          <div className="bg-blue-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-8 border-blue-800">
-            <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1 flex items-center gap-1">
-              <ArrowRightLeft size={10} /> Total Unit
+        {/* METRICS GRID */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <ArrowRightLeft size={12} /> Total Volume
             </p>
-            <h3 className="text-xl md:text-3xl font-black italic">
-              {stats.motor} <span className="text-[10px]">U</span>
-            </h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{stats.motor} <span className="text-xs font-medium text-slate-400">Unit</span></h3>
           </div>
-          <div className="bg-emerald-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-8 border-emerald-800">
-            <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1 flex items-center gap-1">
-              <TrendingUp size={10} /> Omzet Bruto
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60">
+            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <TrendingUp size={12} /> Omzet Bruto
             </p>
-            <h3 className="text-lg md:text-2xl font-black italic truncate">
-              Rp {stats.bruto.toLocaleString()}
-            </h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-950 truncate">Rp {stats.bruto.toLocaleString("id-ID")}</h3>
           </div>
-          <div className="bg-rose-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-8 border-rose-800">
-            <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1">
-              Pengeluaran
-            </p>
-            <h3 className="text-lg md:text-2xl font-black italic truncate">
-              Rp {stats.biaya.toLocaleString()}
-            </h3>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60">
+            <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mb-1">Total Pengeluaran</p>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-950 truncate">Rp {stats.biaya.toLocaleString("id-ID")}</h3>
           </div>
-          <div className="bg-orange-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-8 border-orange-800">
-            <p className="text-[8px] md:text-[10px] font-bold uppercase opacity-70 mb-1 flex items-center gap-1">
-              <Wallet size={10} /> Profit Netto
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60">
+            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Wallet size={12} /> Profit Netto
             </p>
-            <h3 className="text-lg md:text-2xl font-black italic truncate">
-              Rp {stats.netto.toLocaleString()}
-            </h3>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-emerald-600 truncate">Rp {stats.netto.toLocaleString("id-ID")}</h3>
           </div>
         </div>
 
-        {/* TREND SECTION (BARU) */}
+        {/* SUB-METRICS GRID (PROFIT & ALOKASI) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          <div className="bg-white p-5 rounded-2xl border-t-4 border-slate-700 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total Komisi Operator (40%)</p>
+            <h4 className="text-xl font-bold text-slate-800">Rp {stats.jatahKaryawan.toLocaleString("id-ID")}</h4>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border-t-4 border-blue-600 shadow-sm">
+            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-0.5">Setoran Bersih Toko (Owner)</p>
+            <h4 className="text-xl font-bold text-blue-700">Rp {stats.netto.toLocaleString("id-ID")}</h4>
+          </div>
+        </div>
+
+        {/* REVENUE INSIGHT / TREND ZONE */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-          <div className="bg-white p-5 rounded-[2rem] shadow-xl border-b-4 border-indigo-500 flex items-center gap-4">
-            <div className="bg-indigo-100 p-3 rounded-2xl text-indigo-600">
-              <Sparkles size={24} />
-            </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 flex items-center gap-4">
+            <div className="bg-blue-50 p-3 rounded-xl text-blue-600"><Sparkles size={20} /></div>
             <div className="min-w-0">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                Layanan Terlaris
-              </p>
-              <h4 className="text-base md:text-lg font-black italic text-slate-800 uppercase truncate">
-                {trends.topLayanan}
-              </h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Layanan Terlaris</p>
+              <h4 className="text-md font-bold text-slate-800 uppercase truncate">{trends.topLayanan}</h4>
             </div>
           </div>
-
-          <div className="bg-white p-5 rounded-[2rem] shadow-xl border-b-4 border-purple-500 flex items-center gap-4">
-            <div className="bg-purple-100 p-3 rounded-2xl text-purple-600">
-              <Bike size={24} />
-            </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 flex items-center gap-4">
+            <div className="bg-amber-50 p-3 rounded-xl text-amber-600"><Bike size={20} /></div>
             <div className="min-w-0">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                Kategori Terbanyak
-              </p>
-              <h4 className="text-base md:text-lg font-black italic text-slate-800 uppercase truncate">
-                {trends.topKategori}
-              </h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Kategori Motor Dominan</p>
+              <h4 className="text-md font-bold text-slate-800 uppercase truncate">{trends.topKategori}</h4>
             </div>
           </div>
         </div>
 
-        {/* PROFIT INFO */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-10">
-          <div className="bg-white p-6 rounded-[2rem] border-l-[10px] border-emerald-500 shadow-xl">
-            <p className="text-[9px] font-black text-slate-400 uppercase">
-              Total Gaji Operator (40%)
-            </p>
-            <h4 className="text-xl md:text-3xl font-black italic text-slate-800">
-              Rp {stats.jatahKaryawan.toLocaleString()}
-            </h4>
+        {/* LOG HISTORY TABLE */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+          <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Riwayat Arus Transaksi Terkini</h4>
+            <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full animate-pulse">Live Feed</span>
           </div>
-          <div className="bg-white p-6 rounded-[2rem] border-l-[10px] border-blue-500 shadow-xl">
-            <p className="text-[9px] font-black text-slate-400 uppercase">
-              Setoran Bersih Owner
-            </p>
-            <h4 className="text-xl md:text-3xl font-black italic text-slate-800">
-              Rp {stats.netto.toLocaleString()}
-            </h4>
-          </div>
-        </div>
-
-        {/* TABLE SECTION */}
-        <div className="bg-white rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden">
-          <div className="bg-[#1e3a8a] p-5 text-white flex justify-between items-center font-black text-[10px] uppercase italic">
-            <span>Riwayat Transaksi Terkini</span>
-            <span className="bg-blue-500 px-3 py-1 rounded-full text-[8px] not-italic animate-pulse">
-              LIVE
-            </span>
-          </div>
-          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-            <table className="w-full text-left min-w-[700px]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-slate-400 text-[9px] uppercase font-black border-b border-slate-100">
-                  <th className="p-6">Nama Operator</th>
-                  <th className="p-6">Jenis Layanan</th>
-                  <th className="p-6">Waktu Transaksi</th>
-                  <th className="p-6 text-right pe-10">Total Biaya</th>
+                <tr className="bg-slate-50/50 text-slate-400 text-[10px] uppercase font-bold border-b border-slate-100 tracking-wider">
+                  <th className="py-4 px-6">Nama Operator</th>
+                  <th className="py-4 px-6">Jenis Layanan</th>
+                  <th className="py-4 px-6">Waktu Transaksi</th>
+                  <th className="py-4 px-6 text-right">Total Biaya</th>
                 </tr>
               </thead>
-              <tbody className="text-slate-700 text-[12px] font-bold uppercase italic">
+              <tbody className="text-slate-600 text-xs font-medium divide-y divide-slate-100">
                 {transaksi.slice(0, 10).map((item) => (
-                  <tr
-                    key={item.Id}
-                    className="border-b border-slate-50 hover:bg-blue-50/50 transition-colors"
-                  >
-                    <td className="p-6 font-black text-blue-900">
-                      {mapKaryawan[item.KaryawanId] || (
-                        <span className="text-rose-400">
-                          ID: {item.KaryawanId}
-                        </span>
-                      )}
+                  <tr key={item.Id} className="hover:bg-slate-50/40 transition-colors">
+                    <td className="py-4 px-6 font-bold text-slate-900">
+                      {mapKaryawan[item.KaryawanId] || <span className="text-rose-500 font-normal">ID: {item.KaryawanId}</span>}
                     </td>
-                    <td className="p-6 text-slate-500 font-medium">
-                      {item.Layanan || "Cuci Motor"}
-                    </td>
-                    <td className="p-6 text-slate-400 font-medium not-italic">
+                    <td className="py-4 px-6 text-slate-500">{item.Layanan || "Cuci Motor"}</td>
+                    <td className="py-4 px-6 text-slate-400 font-normal">
                       {new Date(item.Tanggal).toLocaleDateString("id-ID", {
                         day: "2-digit",
                         month: "2-digit",
                         hour: "2-digit",
                         minute: "2-digit",
-                      })}
+                      })} WIB
                     </td>
-                    <td className="p-6 text-right font-black text-emerald-600 text-[15px] pe-10">
-                      Rp {Number(item.Total).toLocaleString()}
+                    <td className="py-4 px-6 text-right font-bold text-slate-900 text-sm">
+                      Rp {Number(item.Total).toLocaleString("id-ID")}
                     </td>
                   </tr>
                 ))}
@@ -562,6 +475,7 @@ const lastDay = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${Str
             </table>
           </div>
         </div>
+
       </main>
     </div>
   );

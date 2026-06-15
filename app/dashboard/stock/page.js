@@ -1,7 +1,32 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
+import {
+  BrainCircuit,
+  ClipboardList,
+  History,
+  LayoutDashboard,
+  Menu,
+  Package,
+  PlusCircle,
+  Receipt,
+  Users,
+  Wallet,
+  X,
+  RefreshCw,
+  MapPin,
+  Globe,
+  Layers,
+  Edit2,
+  Trash2,
+  AlertTriangle,
+  CheckCircle,
+  FolderOpen,
+  DollarSign,
+  Box
+} from "lucide-react";
 
 export default function StokBarang() {
   const [barang, setBarang] = useState([]);
@@ -18,25 +43,34 @@ export default function StokBarang() {
     Id: null, NamaBarang: "", Kategori: "Bahan Kimia", Harga: 0, JumlahStock: 0, branch_id: "" 
   });
 
+  const pathname = usePathname();
+
   const showAlert = (message, type = "success") => {
     setNotif({ show: true, message, type });
     setTimeout(() => setNotif({ show: false, message: "", type: "success" }), 3000);
   };
 
   const fetchData = async () => {
-    // 1. Ambil List Cabang
-    const { data: bData } = await supabase.from("branches").select("*");
-    if (bData) setBranches(bData);
+    setLoading(true);
+    try {
+      // 1. Ambil List Cabang
+      const { data: bData } = await supabase.from("branches").select("*").order("id", { ascending: true });
+      if (bData) setBranches(bData);
 
-    // 2. Query Barang dengan Join Cabang
-    let query = supabase.from("Barangs").select("*, branches(nama_cabang)").order("Id", { ascending: true });
-    
-    if (selectedBranch !== "all") {
-      query = query.eq("branch_id", selectedBranch);
+      // 2. Query Barang dengan Join Cabang
+      let query = supabase.from("Barangs").select("*, branches(nama_cabang)").order("Id", { ascending: true });
+      
+      if (selectedBranch !== "all") {
+        query = query.eq("branch_id", selectedBranch);
+      }
+
+      const { data, error } = await query;
+      if (!error) setBarang(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-
-    const { data, error } = await query;
-    if (!error) setBarang(data);
   };
 
   useEffect(() => { fetchData(); }, [selectedBranch]);
@@ -50,17 +84,17 @@ export default function StokBarang() {
       const payload = {
         NamaBarang: formData.NamaBarang,
         Kategori: formData.Kategori,
-        Harga: formData.Harga,
-        JumlahStock: formData.JumlahStock,
+        Harga: Number(formData.Harga),
+        JumlahStock: Number(formData.JumlahStock),
         branch_id: formData.branch_id
       };
 
       if (formData.Id) {
         await supabase.from("Barangs").update(payload).eq("Id", formData.Id);
-        showAlert("Stok Cabang Diupdate! ✨");
+        showAlert("Stok Cabang Diupdate! ✨", "success");
       } else {
         await supabase.from("Barangs").insert([payload]);
-        showAlert("Barang Ditambah ke Cabang! 🚀");
+        showAlert("Barang Ditambah ke Cabang! 🚀", "success");
       }
       setShowModal(false);
       fetchData();
@@ -77,157 +111,388 @@ export default function StokBarang() {
     if (!error) {
       fetchData();
       showAlert("Barang Telah Dihapus", "success");
+    } else {
+      showAlert("Gagal menghapus barang", "error");
     }
     setDeleteId(null);
   };
 
-  // Helper untuk mengubah tampilan nama "Umum" menjadi "UTAMA"
   const formatBranchName = (name) => {
     if (!name) return "UTAMA";
     return name.toUpperCase() === "UMUM" ? "CABANG UTAMA" : name.toUpperCase();
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-100 text-slate-900 overflow-x-hidden relative">
+    <div className="flex min-h-screen bg-slate-50/50 font-sans antialiased text-slate-800 relative overflow-x-hidden">
       
-      {/* NOTIFIKASI TOAST */}
+      {/* NOTIFIKASI TOAST FLOATING */}
       {notif.show && (
-        <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300 ${
-          notif.type === "success" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
+        <div className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl transition-all duration-300 border backdrop-blur-sm animate-in fade-in slide-in-from-top-5 ${
+          notif.type === "success" 
+            ? "bg-emerald-500 text-white border-emerald-600" 
+            : "bg-rose-500 text-white border-rose-600"
         }`}>
-          <span className="text-[10px] font-black uppercase tracking-widest">{notif.message}</span>
+          {notif.type === "success" ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+          <span className="text-xs font-bold tracking-wide">{notif.message}</span>
         </div>
       )}
 
-      {/* MODAL HAPUS */}
+      {/* MODAL CONFIRM DELETE */}
       {deleteId && (
-        <div className="fixed inset-0 bg-black/70 z-[150] flex items-center justify-center p-4 backdrop-blur-md text-white">
-          <div className="bg-white text-slate-900 rounded-[2rem] w-full max-w-xs overflow-hidden shadow-2xl">
-            <div className="p-8 text-center space-y-4">
-               <h3 className="font-black uppercase">Hapus Barang?</h3>
-               <div className="flex flex-col gap-2">
-                 <button onClick={confirmDelete} className="bg-red-500 text-white p-3 rounded-xl font-bold uppercase text-xs">Ya, Hapus</button>
-                 <button onClick={() => setDeleteId(null)} className="bg-slate-100 p-3 rounded-xl font-bold uppercase text-xs">Batal</button>
+        <div className="fixed inset-0 bg-slate-900/40 z-[150] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white text-slate-900 rounded-2xl w-full max-w-sm overflow-hidden shadow-xl border border-slate-100">
+            <div className="p-6 text-center space-y-4">
+               <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto text-rose-500">
+                 <AlertTriangle size={24} />
+               </div>
+               <div>
+                 <h3 className="text-base font-bold text-slate-900">Hapus Barang Inventaris?</h3>
+                 <p className="text-xs text-slate-500 mt-1">Tindakan ini tidak bisa dibatalkan dan stok akan langsung terhapus dari sistem.</p>
+               </div>
+               <div className="grid grid-cols-2 gap-3 pt-2">
+                 <button onClick={() => setDeleteId(null)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2.5 rounded-xl font-semibold text-xs transition-all">Batal</button>
+                 <button onClick={confirmDelete} className="bg-rose-600 hover:bg-rose-700 text-white p-2.5 rounded-xl font-semibold text-xs transition-all shadow-sm shadow-rose-600/10">Ya, Hapus</button>
                </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* SIDEBAR */}
-      <aside className={`fixed md:sticky top-0 left-0 bottom-0 z-50 w-64 bg-[#2b459a] text-white p-6 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} flex flex-col shadow-2xl`}>
-        <h2 className="text-xl font-black mb-10 italic uppercase border-b border-blue-800 pb-4 mt-12 md:mt-0">STEAM BERKAH 🚀</h2>
-        <nav className="flex-1 space-y-2 text-xs font-bold uppercase">
-          <Link href="/dashboard"><div className="p-4 rounded-xl hover:bg-blue-800 opacity-70">📊 Dashboard</div></Link>
-          <div className="p-4 rounded-xl bg-blue-600 shadow-lg font-black italic">📦 Stok Barang</div>
-          <Link href="/dashboard/pengeluaran"><div className="p-4 rounded-xl hover:bg-blue-800 opacity-70">💸 Pengeluaran</div></Link>
-          <Link href="/dashboard/transaksi"><div className="p-4 rounded-xl hover:bg-blue-800 opacity-70">📝 Transaksi</div></Link>
-        </nav>
-      </aside>
+      {/* MOBILE TRIGGER */}
+      <button
+        onClick={() => setIsSidebarOpen(true)}
+        className="md:hidden fixed top-4 left-4 z-[60] bg-white text-slate-700 p-2.5 rounded-xl shadow-sm border border-slate-200"
+      >
+        <Menu size={18} />
+      </button>
 
-      <main className="flex-1 p-4 md:p-12 w-full">
-        <div className="max-w-5xl mx-auto pt-14 md:pt-0">
-          
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-            <div>
-              <h1 className="text-3xl font-black italic uppercase text-slate-800 tracking-tighter">📦 Stok Inventaris</h1>
-              <div className="flex gap-2 mt-2">
-                <select 
-                    value={selectedBranch} 
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="bg-white border border-slate-200 text-[10px] font-black uppercase px-3 py-2 rounded-lg outline-none shadow-sm text-blue-600"
-                >
-                    <option value="all">🌍 TOTAL SEMUA CABANG</option>
-                    {branches.map(b => (
-                        <option key={b.id} value={b.id}>📍 {formatBranchName(b.nama_cabang)}</option>
-                    ))}
-                </select>
+      {/* SIDEBAR - HIGH CLASS NAVY SLATE */}
+      <aside
+        className={`fixed md:sticky top-0 left-0 z-[60] w-64 h-screen bg-[#1e293b] text-slate-200 p-5 transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} shadow-xl flex flex-col justify-between`}
+      >
+        <div>
+          <div className="flex justify-between items-center mb-8 px-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-sm">SB</div>
+              <div>
+                <h2 className="text-base font-bold tracking-tight text-white uppercase leading-none">STEAM BERKAH</h2>
+                <p className="text-[9px] font-semibold text-slate-500 tracking-wider mt-1 uppercase">Management System</p>
               </div>
             </div>
-            <button onClick={() => { setFormData({ Id: null, NamaBarang: "", Kategori: "Bahan Kimia", Harga: 0, JumlahStock: 0, branch_id: selectedBranch === 'all' ? "" : selectedBranch }); setShowModal(true); }} className="w-full md:w-auto bg-[#10b981] text-white px-6 py-4 rounded-2xl text-[10px] font-black shadow-lg hover:bg-emerald-600 transition-all uppercase">+ TAMBAH BARANG</button>
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-white">
+              <X size={20} />
+            </button>
           </div>
 
-          <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200">
-            <div className="bg-[#2b459a] p-4 text-white font-black text-[10px] uppercase italic tracking-widest flex justify-between">
-              <span>📋 Daftar Inventaris</span>
-              <span>{selectedBranch === 'all' ? 'SEMUA LOKASI' : 'CABANG TERFILTER'}</span>
+          <nav className="space-y-1 text-sm font-medium opacity-95 overflow-y-auto flex-1 pr-1 scrollbar-hide">
+            <p className="px-4 py-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pustaka Utama</p>
+            
+            <Link href="/dashboard" onClick={() => setIsSidebarOpen(false)}>
+              <div className={`px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${pathname === "/dashboard" ? "bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/20" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}>
+                <LayoutDashboard size={16} /> Monitoring Utama
+              </div>
+            </Link>
+
+            <Link href="/dashboard/analytics" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-3 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition-all font-bold flex items-center gap-3 my-2 shadow-sm">
+                <BrainCircuit size={16} /> Analitik AI (Prophet)
+              </div>
+            </Link>
+
+            <p className="px-4 py-1.5 mt-5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">Unit Kerja Cabang</p>
+            <div
+              onClick={() => { setSelectedBranch("all"); setIsSidebarOpen(false); }}
+              className={`px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-2.5 text-xs transition-all ${selectedBranch === "all" ? "bg-slate-800 text-white font-semibold border-l-4 border-blue-500 pl-3" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+            >
+              <Globe size={14} /> Gabungan Semua Unit
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[600px]">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase font-black border-b">
-                    <th className="p-4">Lokasi</th>
-                    <th className="p-4">Nama Barang</th>
-                    <th className="p-4">Kategori</th>
-                    <th className="p-4">Harga Pokok</th>
-                    <th className="p-4 text-center">Stok</th>
-                    <th className="p-4 text-center">Aksi</th>
+            {branches.map((b) => (
+              <div
+                key={b.id}
+                onClick={() => { setSelectedBranch(b.id.toString()); setIsSidebarOpen(false); }}
+                className={`px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-2.5 text-xs transition-all ${selectedBranch === b.id.toString() ? "bg-slate-800 text-white font-semibold border-l-4 border-blue-500 pl-3" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+              >
+                <MapPin size={12} /> {b.nama_cabang}
+              </div>
+            ))}
+
+            <p className="px-4 py-1.5 mt-5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">Operasional & Log</p>
+            <Link href="/dashboard/transaksi" onClick={() => setIsSidebarOpen(false)}>
+              <div className={`px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3`}>
+                <Receipt size={14} /> Input Transaksi
+              </div>
+            </Link>
+            <Link href="/dashboard/laporan-harian" onClick={() => setIsSidebarOpen(false)}>
+              <div className={`px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3`}>
+                <ClipboardList size={14} /> Laporan Harian
+              </div>
+            </Link>
+            <Link href="/dashboard/jasa-operator" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3">
+                <History size={14} /> Gaji per-Operator
+              </div>
+            </Link>
+            <Link href="/dashboard/pengeluaran" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3">
+                <Wallet size={14} /> Biaya Pengeluaran
+              </div>
+            </Link>
+            <Link href="/dashboard/stock" onClick={() => setIsSidebarOpen(false)}>
+              <div className={`px-4 py-2.5 rounded-xl flex items-center gap-3 transition-all ${pathname === "/dashboard/stock" ? "bg-blue-600 text-white font-semibold" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}>
+                <Package size={14} /> Stok Barang
+              </div>
+            </Link>
+            <Link href="/dashboard/karyawan" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-3">
+                <Users size={14} /> Manajemen Karyawan
+              </div>
+            </Link>
+
+            <div className="h-px bg-slate-800 my-4"></div>
+            <Link href="/dashboard/branches" onClick={() => setIsSidebarOpen(false)}>
+              <div className="px-4 py-3 rounded-xl hover:bg-amber-500 hover:text-slate-950 text-amber-400 border border-amber-500/20 flex items-center gap-3 transition-all font-semibold">
+                <PlusCircle size={14} /> New Branch Unit
+              </div>
+            </Link>
+          </nav>
+        </div>
+        
+        <div className="border-t border-slate-800 pt-4 mt-auto space-y-3">
+          <button 
+            onClick={fetchData}
+            className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-all border border-slate-700/60 active:scale-98 flex items-center justify-center gap-2 shadow-sm"
+          >
+            <RefreshCw size={12} className={loading ? "animate-spin text-blue-400" : "text-slate-400"} />
+            Sync Inventaris
+          </button>
+        </div>
+      </aside>
+
+      {/* MAIN WORKSPACE */}
+      <main className="flex-1 p-6 md:p-10 w-full max-w-5xl mx-auto min-w-0">
+        
+        {/* HEADER CONTROLS */}
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 pb-5">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">
+              Stok Inventaris Logistik
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">Pantau bahan kimia, sabun, semir, dan alat operasional cabang.</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            {/* SELEKTOR CABANG DROPDOWN */}
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-white rounded-xl shadow-sm border border-slate-200 text-xs font-medium text-slate-700 w-full sm:w-auto">
+              <Layers size={14} className="text-slate-400" />
+              <select 
+                value={selectedBranch} 
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="outline-none bg-transparent cursor-pointer font-semibold text-slate-800 w-full sm:w-auto"
+              >
+                <option value="all">Semua Cabang / Pusat</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>📍 {formatBranchName(b.nama_cabang)}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* BUTTON TAMBAH */}
+            <button 
+              onClick={() => { 
+                setFormData({ Id: null, NamaBarang: "", Kategori: "Bahan Kimia", Harga: 0, JumlahStock: 0, branch_id: selectedBranch === 'all' ? "" : selectedBranch }); 
+                setShowModal(true); 
+              }} 
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-600/10 transition-all flex items-center justify-center gap-2"
+            >
+              <PlusCircle size={14} />
+              TAMBAH BARANG
+            </button>
+          </div>
+        </div>
+
+        {/* INVENTORY DATA TABLE */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Package size={16} className="text-slate-400" />
+              <h3 className="text-sm font-bold text-slate-800">Daftar Bahan & Logistik</h3>
+            </div>
+            <span className="text-xs bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider text-[10px]">
+              {selectedBranch === 'all' ? 'SEMUA LOKASI' : 'TERFILTER'}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50 text-slate-400 text-[11px] font-semibold uppercase tracking-wider border-b border-slate-100">
+                  <th className="py-3 px-6">Lokasi Cabang</th>
+                  <th className="py-3 px-6">Nama Barang</th>
+                  <th className="py-3 px-6">Kategori</th>
+                  <th className="py-3 px-6">Harga Pokok</th>
+                  <th className="py-3 px-6 text-center">Sisa Stok</th>
+                  <th className="py-3 px-6 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-700 text-sm font-normal divide-y divide-slate-100">
+                {barang.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="py-12 text-center text-xs text-slate-400 font-medium">Gudang kosong! Tidak ada data logistik untuk filter cabang ini.</td>
                   </tr>
-                </thead>
-                <tbody className="text-[12px] font-bold uppercase">
-                  {barang.map((item) => (
-                    <tr key={item.Id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                      <td className="p-4">
-                        <span className={`text-[9px] px-2 py-1 rounded-md font-black ${item.branches?.nama_cabang?.toUpperCase() === 'UMUM' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                            {formatBranchName(item.branches?.nama_cabang)}
+                ) : (
+                  barang.map((item) => (
+                    <tr key={item.Id} className="hover:bg-slate-50/40 transition-colors">
+                      <td className="py-4 px-6">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                          item.branches?.nama_cabang?.toUpperCase() === 'UMUM' 
+                            ? 'bg-amber-50 text-amber-600 border-amber-200' 
+                            : 'bg-blue-50 text-blue-600 border-blue-200'
+                        }`}>
+                          {formatBranchName(item.branches?.nama_cabang)}
                         </span>
                       </td>
-                      <td className="p-4 text-slate-900 font-black tracking-tight">{item.NamaBarang}</td>
-                      <td className="p-4 text-slate-400">{item.Kategori}</td>
-                      <td className="p-4 text-slate-600">Rp {Number(item.Harga).toLocaleString('id-ID')}</td>
-                      <td className={`p-4 text-center font-black ${item.JumlahStock < 5 ? 'text-red-600 animate-pulse' : 'text-emerald-600'}`}>
-                        {item.JumlahStock}
+                      <td className="py-4 px-6 font-semibold text-slate-900">{item.NamaBarang}</td>
+                      <td className="py-4 px-6 text-slate-400 text-xs font-medium">{item.Kategori}</td>
+                      <td className="py-4 px-6 text-slate-600 font-medium">Rp {Number(item.Harga).toLocaleString('id-ID')}</td>
+                      <td className="py-4 px-6 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          item.JumlahStock < 5 
+                            ? 'bg-rose-50 text-rose-600 border border-rose-200 animate-pulse' 
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}>
+                          {item.JumlahStock} Unit
+                        </span>
                       </td>
-                      <td className="p-4 text-center">
-                        <div className="flex justify-center gap-2">
-                          <button onClick={() => { setFormData(item); setShowModal(true); }} className="text-orange-400 p-2 hover:scale-125 transition-all">✏️</button>
-                          <button onClick={() => setDeleteId(item.Id)} className="text-red-400 p-2 hover:scale-125 transition-all">🗑️</button>
+                      <td className="py-4 px-6">
+                        <div className="flex justify-center items-center gap-3">
+                          <button 
+                            onClick={() => { setFormData(item); setShowModal(true); }} 
+                            className="text-slate-400 hover:text-blue-600 transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            onClick={() => setDeleteId(item.Id)} 
+                            className="text-slate-400 hover:text-rose-600 transition-colors"
+                            title="Hapus"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </main>
 
-      {/* FORM MODAL */}
+      {/* MODAL INPUT / EDIT PREVENTING CLUNKY FORM STYLE */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm shadow-2xl border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-10">
-            <div className="bg-[#10b981] p-5 text-white font-black italic flex justify-between items-center">
-              <span className="text-xs uppercase">{formData.Id ? "⚡ EDIT DATA STOK" : "📦 BARANG BARU"}</span>
-              <button onClick={() => setShowModal(false)} className="text-xl">✕</button>
+        <div className="fixed inset-0 bg-slate-900/40 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-100 overflow-hidden">
+            <div className="bg-slate-900 p-5 text-white flex justify-between items-center border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Box size={16} className="text-blue-400" />
+                <span className="text-xs font-bold uppercase tracking-wider">{formData.Id ? "Edit Inventaris" : "Tambah Barang Baru"}</span>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white transition-colors">
+                <X size={18} />
+              </button>
             </div>
-            <form onSubmit={handleSave} className="p-8 space-y-4">
+            
+            <form onSubmit={handleSave} className="p-6 space-y-4 text-xs font-medium text-slate-700">
               <div>
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Lokasi Cabang</label>
-                <select required className="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" value={formData.branch_id} onChange={(e) => setFormData({...formData, branch_id: e.target.value})}>
-                  <option value="">-- PILIH CABANG --</option>
-                  {branches.map(b => (
-                    <option key={b.id} value={b.id}>{formatBranchName(b.nama_cabang)}</option>
-                  ))}
-                </select>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Alokasi Unit Cabang</label>
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-3 rounded-xl focus-within:border-blue-500 transition-all">
+                  <MapPin size={14} className="text-slate-400" />
+                  <select 
+                    required 
+                    className="w-full bg-transparent font-semibold text-slate-800 outline-none cursor-pointer text-sm" 
+                    value={formData.branch_id} 
+                    onChange={(e) => setFormData({...formData, branch_id: e.target.value})}
+                  >
+                    <option value="">-- Pilih Penempatan Cabang --</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{formatBranchName(b.nama_cabang)}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
               <div>
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Nama Barang</label>
-                <input required className="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl text-sm font-bold uppercase outline-none focus:border-emerald-500" value={formData.NamaBarang} onChange={(e) => setFormData({...formData, NamaBarang: e.target.value})} />
+                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Nama Barang / Material</label>
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-3 rounded-xl focus-within:border-blue-500 transition-all">
+                  <Package size={14} className="text-slate-400" />
+                  <input 
+                    required 
+                    type="text"
+                    placeholder="Contoh: Shampoo Ice Cream"
+                    className="w-full bg-transparent font-semibold text-slate-800 outline-none text-sm" 
+                    value={formData.NamaBarang} 
+                    onChange={(e) => setFormData({...formData, NamaBarang: e.target.value})} 
+                  />
+                </div>
               </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Kategori</label>
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-3 rounded-xl focus-within:border-blue-500 transition-all">
+                  <FolderOpen size={14} className="text-slate-400" />
+                  <select 
+                    className="w-full bg-transparent font-semibold text-slate-800 outline-none text-sm" 
+                    value={formData.Kategori} 
+                    onChange={(e) => setFormData({...formData, Kategori: e.target.value})}
+                  >
+                    <option value="Bahan Kimia">Bahan Kimia (Sabun/Semir)</option>
+                    <option value="Alat Pembersih">Alat Pembersih (Lap/Spon/Sikat)</option>
+                    <option value="Suku Cadang">Suku Cadang Mesin Hidrolik / Kompresor</option>
+                    <option value="Lain-lain">Lain-lain</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Harga Pokok</label>
-                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" value={formData.Harga} onChange={(e) => setFormData({...formData, Harga: e.target.value})} />
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Harga Pokok (Rp)</label>
+                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-3 rounded-xl focus-within:border-blue-500 transition-all">
+                    <DollarSign size={14} className="text-slate-400" />
+                    <input 
+                      type="number" 
+                      placeholder="0"
+                      className="w-full bg-transparent font-semibold text-slate-800 outline-none text-sm" 
+                      value={formData.Harga} 
+                      onChange={(e) => setFormData({...formData, Harga: e.target.value})} 
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Sisa Stok</label>
-                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" value={formData.JumlahStock} onChange={(e) => setFormData({...formData, JumlahStock: e.target.value})} />
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Jumlah Stok</label>
+                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-3 rounded-xl focus-within:border-blue-500 transition-all">
+                    <Box size={14} className="text-slate-400" />
+                    <input 
+                      type="number" 
+                      placeholder="0"
+                      className="w-full bg-transparent font-semibold text-slate-800 outline-none text-sm" 
+                      value={formData.JumlahStock} 
+                      onChange={(e) => setFormData({...formData, JumlahStock: e.target.value})} 
+                    />
+                  </div>
                 </div>
               </div>
-              <button disabled={loading} className="w-full bg-[#10b981] text-white p-4 rounded-2xl font-black text-xs shadow-xl hover:bg-emerald-600 transition-all uppercase italic tracking-widest">
-                {loading ? "Menyimpan..." : "Simpan Data Cabang"}
-              </button>
+
+              <div className="pt-2">
+                <button 
+                  disabled={loading} 
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3.5 rounded-xl font-bold text-xs shadow-md shadow-blue-600/10 transition-all uppercase tracking-wider"
+                >
+                  {loading ? "Sedang Menyimpan..." : "Simpan Data Inventaris"}
+                </button>
+              </div>
             </form>
           </div>
         </div>
