@@ -84,35 +84,78 @@ export default function Pengeluaran() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!formData.branch_id) return showAlert("Pilih Cabang Dulu!", "error");
+const handleSave = async (e) => {
+  e.preventDefault();
 
-    setLoading(true);
-    try {
-      const payload = { 
-        Tanggal: formData.Tanggal, 
-        Keterangan: formData.Keterangan, 
-        Jumlah: Number(formData.Jumlah),
-        branch_id: Number(formData.branch_id) 
-      };
+  if (!formData.branch_id) {
+    return showAlert("Pilih Cabang Dulu!", "error");
+  }
 
-      if (formData.Id) {
-        await supabase.from("PengeluaranHarians").update(payload).eq("Id", formData.Id);
-        showAlert("Data Diupdate! ✨", "success");
-      } else {
-        await supabase.from("PengeluaranHarians").insert([payload]);
-        showAlert("Berhasil Dicatat! 🚀", "success");
+  setLoading(true);
+
+  try {
+    const payload = {
+      Tanggal: new Date(formData.Tanggal).toISOString(),
+      Keterangan: formData.Keterangan,
+      Jumlah: Number(formData.Jumlah),
+      branch_id: Number(formData.branch_id),
+    };
+
+    console.log("payload:", payload);
+
+    let response;
+
+    if (formData.Id) {
+      response = await supabase
+        .from("PengeluaranHarians")
+        .update(payload)
+        .eq("Id", formData.Id)
+        .select();
+
+      console.log("update response:", response);
+
+      if (response.error) {
+        throw response.error;
       }
-      setShowModal(false);
-      fetchData();
-    } catch (err) {
-      showAlert("Gagal simpan data", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
 
+      showAlert("Data Diupdate! ✨", "success");
+    } else {
+      response = await supabase
+        .from("PengeluaranHarians")
+        .insert([payload])
+        .select();
+
+      console.log("insert response:", response);
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      showAlert("Berhasil Dicatat! 🚀", "success");
+    }
+
+    setShowModal(false);
+
+    setFormData({
+      Id: null,
+      Keterangan: "",
+      Jumlah: 0,
+      Tanggal: new Date().toISOString().split("T")[0],
+      branch_id: "",
+    });
+
+    fetchData();
+  } catch (err) {
+    console.error("Supabase Error:", err);
+
+    showAlert(
+      err.message || "Gagal menyimpan data",
+      "error"
+    );
+  } finally {
+    setLoading(false);
+  }
+};
   const confirmDelete = async () => {
     if (!deleteId) return;
     const { error } = await supabase.from("PengeluaranHarians").delete().eq("Id", deleteId);

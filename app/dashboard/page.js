@@ -303,6 +303,7 @@ export default function Dashboard() {
                 <PlusCircle size={14} /> Tambah Cabang Baru
               </div>
             </Link>
+            
           </nav>
         </div>
         <div className="pt-4 border-t border-slate-800 text-slate-600 text-[9px] font-bold tracking-widest uppercase">
