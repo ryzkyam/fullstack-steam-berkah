@@ -660,7 +660,7 @@ export default function TransaksiPage() {
                 type="submit"
                 className="w-full sm:w-48 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-sm hover:shadow transition-all text-xs uppercase tracking-wider"
               >
-                Simpan Transaksi 🚀
+                Simpan Transaksi 
               </button>
             </div>
           </form>
